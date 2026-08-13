@@ -1,0 +1,19 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "lint": {
+      "inputs": ["src/**", "tests/**", "alembic/**", "pyproject.toml", "uv.lock"]
+    },
+    "typecheck": {
+      "inputs": ["src/**", "pyproject.toml", "uv.lock"]
+    },
+    "test": {
+      "cache": false,
+      "inputs": ["src/**", "tests/**", "pyproject.toml", "uv.lock"]
+    },
+    "build": {
+      "cache": false
+    }
+  }
+}

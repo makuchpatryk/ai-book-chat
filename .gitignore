@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.turbo/
+
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+.env
+uploads/
+
+.idea/
+.vscode/
+.DS_Store

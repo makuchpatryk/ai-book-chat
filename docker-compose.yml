@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookchat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookchat}
+      POSTGRES_DB: ${POSTGRES_DB:-bookchat}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookchat} -d ${POSTGRES_DB:-bookchat}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./apps/api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src
+    environment:
+      <<: &backend_env
+        DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bookchat}:${POSTGRES_PASSWORD:-bookchat}@postgres:5432/${POSTGRES_DB:-bookchat}
+        REDIS_URL: redis://redis:6379/0
+        CELERY_BROKER_URL: redis://redis:6379/0
+        CELERY_RESULT_BACKEND: redis://redis:6379/1
+        UPLOAD_DIR: /data/uploads
+        LOG_LEVEL: ${LOG_LEVEL:-INFO}
+        CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+        OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+        ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api/src:/app/src
+      - ./apps/api/alembic:/app/alembic
+      - uploads_data:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status == 200 else 1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    build: ./apps/api
+    command: celery -A app.worker.celery_app worker -l info
+    environment:
+      <<: *backend_env
+    volumes:
+      - ./apps/api/src:/app/src
+      - uploads_data:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
