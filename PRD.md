@@ -12,8 +12,9 @@ Upload a book (PDF), ask questions in natural language, get grounded, analytical
 | Backend | FastAPI (Python) |
 | Storage | PostgreSQL 16 + pgvector (docker-compose) |
 | Embeddings | OpenAI `text-embedding-3-small` (1536d) |
-| LLM | Anthropic Claude |
-| Retrieval | Top-k vector search + LLM re-rank |
+| LLM (default) | Anthropic Claude Haiku / Sonnet |
+| LLM (configurable) | Mistral, Ollama, or offline fallback (term overlap) |
+| Retrieval | Top-k vector search + LLM re-rank (pluggable) |
 | Chunking | Chapter/section aware |
 | Citations | Page number only |
 | Answer style | Detailed / analytical, streamed |
@@ -127,8 +128,9 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
 2. Vector search
    embed(standalone_q) → cosine top-30, scoped to document_id
 
-3. Re-rank
-   Claude Haiku scores each candidate 0–10 for relevance
+3. Re-rank (pluggable provider)
+   Anthropic Claude Haiku | Mistral | Ollama | FakeReranker
+   → scores each candidate 0–10 for relevance
    → keep top-8, drop anything below threshold
 
 4. Grounding guard
@@ -142,6 +144,12 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
 6. Persist
    message + message_sources; log token usage
 ```
+
+**Re-ranker providers:**
+- **Anthropic** (default): Claude Haiku via structured output, retries on failure
+- **Mistral**: Large model via Mistral API, JSON response parsing
+- **Ollama**: Local HTTP endpoint (no API key needed)
+- **FakeReranker**: Deterministic fallback (term-overlap scoring, no LLM call)
 
 ---
 
