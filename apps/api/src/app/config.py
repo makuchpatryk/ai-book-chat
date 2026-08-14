@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     rerank_max_tokens: int = 2048
     ollama_base_url: str = "http://localhost:11434"
 
+    # Chat — LLM provider and configuration
+    chat_provider: str = "anthropic"  # anthropic | mistral | ollama
+    chat_model: str = "claude-sonnet-5"
+    chat_rewrite_model: str = "claude-haiku-4-5"
+    chat_max_tokens: int = 2048
+    chat_history_turns: int = 6
+    chat_heartbeat_seconds: float = 15.0
+
     @property
     def sync_database_url(self) -> str:
         """Same database, psycopg driver — used by Celery tasks and Alembic."""

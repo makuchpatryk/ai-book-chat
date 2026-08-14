@@ -85,10 +85,13 @@ conversations
   id, document_id, title, created_at, updated_at
 
 messages
-  id, conversation_id, role (user|assistant), content, created_at
+  id, conversation_id, role (user|assistant), content, order_index,
+  grounded (null|bool), truncated (bool, default false), created_at
+  UNIQUE(conversation_id, order_index)
 
 message_sources                -- citations
-  id, message_id, chunk_id, score
+  id, message_id, chunk_id, score, rank
+  UNIQUE(message_id, chunk_id)
 ```
 
 ---
@@ -169,9 +172,11 @@ DELETE /conversations/{id}
 
 POST   /conversations/{id}/messages   { content }
        → SSE stream:
-         event: sources  { pages: [12, 47, 103] }
+         event: sources  { results: [{chunk_id, page_start, page_end, score, section_title, snippet}],
+                           pages: [12, 47, 103] }
          event: token    { text: "..." }
-         event: done     { message_id }
+         event: done     { message_id, grounded, truncated }
+         event: error    { detail }
 ```
 
 ---
@@ -206,8 +211,13 @@ Upload endpoint, text extraction, section detection, chunking, embedding, status
 Vector search, re-ranker, grounding guard.
 *Verifiable: a query endpoint returns sensible chunks with correct pages.*
 
-**Phase 4 — Chat**
+**Phase 4 — Chat** ✓ DONE
 Conversations, messages, query rewriting, streaming generation, citation persistence.
+*Deviations from §3 and §6:*
+- Messages include `order_index` (deterministic ordering, not timestamp-based) and `grounded` / `truncated` flags.
+- `message_sources` tracks `rank` (0-based position in final ordering) and `score` (re-ranker score, nullable on degrade).
+- SSE `sources` event is a superset: includes chunk details (chunk_id, page_start, page_end, section_title, snippet) not just page numbers. Allows citation UI to render without a second fetch.
+- SSE includes `error` event for in-stream failures (rewrite, generation, etc.).
 
 **Phase 5 — Frontend**
 Upload + document list + status polling, then the chat UI with streaming and citations.

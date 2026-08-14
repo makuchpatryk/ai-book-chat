@@ -29,3 +29,14 @@ def test_retrieval_defaults() -> None:
     assert settings.rerank_min_score == 5
     assert settings.rerank_max_tokens == 2048
     assert settings.ollama_base_url == "http://localhost:11434"
+
+
+def test_chat_defaults() -> None:
+    settings = Settings()
+
+    assert settings.chat_provider == "anthropic"
+    assert settings.chat_model == "claude-sonnet-5"
+    assert settings.chat_rewrite_model == "claude-haiku-4-5"
+    assert settings.chat_max_tokens == 2048
+    assert settings.chat_history_turns == 6
+    assert settings.chat_heartbeat_seconds == 15.0
