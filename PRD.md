@@ -97,7 +97,7 @@ message_sources                -- citations
 ```
 upload → save file → PENDING
   ↓ background task
-1. Extract text per page          pdfplumber
+1. Extract text per page          PyMuPDF  (was pdfplumber — see note below)
 2. Detect sections                PDF outline/bookmarks
                                   → fallback: heading heuristics (font size, numbering)
                                   → fallback: flat page chunking
@@ -108,6 +108,13 @@ upload → save file → PENDING
 ```
 
 Any failure sets `FAILED` with `error_message`; partial chunks are rolled back. A retry endpoint re-runs from step 1.
+
+**Deviation from §1 (Phase 2): PyMuPDF replaces pdfplumber.** pdfplumber needs ~0.3–1 s per page,
+which alone puts the 2-minute budget for a 300-page book at risk, and it exposes neither the outline
+nor per-span font sizes — both of which step 2 needs. PyMuPDF supplies all three from one library
+(measured: 1.1 s to parse 300 pages). Cost: AGPL-3.0, which is irrelevant for a local single-user
+app but would matter if this ever shipped closed-source. Extraction lives behind
+`app.ingestion.extract.extract_pdf()`, so reverting means rewriting one module and its tests.
 
 ---
 

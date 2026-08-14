@@ -49,7 +49,16 @@ def test_upgrade_downgrade_upgrade(scratch_db_url: str) -> None:
         extension = conn.execute(
             sa.text("SELECT extname FROM pg_extension WHERE extname = 'vector'")
         ).scalar_one_or_none()
+        hnsw_index = conn.execute(
+            sa.text(
+                "SELECT indexdef FROM pg_indexes "
+                "WHERE tablename = 'chunks' AND indexname = 'ix_chunks_embedding_hnsw'"
+            )
+        ).scalar_one_or_none()
     assert extension == "vector"
+    assert hnsw_index is not None
+    assert "USING hnsw" in hnsw_index
+    assert "vector_cosine_ops" in hnsw_index
 
     command.downgrade(config, "base")
     with engine.connect() as conn:

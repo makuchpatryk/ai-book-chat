@@ -50,9 +50,18 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:5173"
 
-    # Providers — unused in Phase 1, wired in Phase 2+
+    # Providers — anthropic is unused until the chat phase
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
+
+    # Ingestion — embeddings
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dimensions: int = 1536
+    embedding_batch_size: int = 100
+
+    # Ingestion — chunking
+    chunk_target_tokens: int = 600
+    chunk_overlap_ratio: float = 0.15
 
     @property
     def sync_database_url(self) -> str:

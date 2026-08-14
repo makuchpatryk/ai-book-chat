@@ -15,6 +15,10 @@ dependencies = [
     "redis>=5.2",
     "pgvector>=0.3",
     "python-multipart>=0.0.20",
+    "pymupdf>=1.25",
+    "openai>=1.60",
+    "tiktoken>=0.8",
+    "tenacity>=9.0",
 ]
 
 [dependency-groups]
@@ -57,7 +61,18 @@ ignore_missing_imports = true
 module = ["app.worker.*"]
 disallow_untyped_decorators = false
 
+# PyMuPDF ships py.typed but leaves its Document/Page methods unannotated.
+[[tool.mypy.overrides]]
+module = ["app.ingestion.extract"]
+disallow_untyped_calls = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-q"
+addopts = "-q -m 'not live'"
+# INFO so `logger.info(..., extra={...})` actually builds a LogRecord under test:
+# a reserved key there (e.g. "filename") only raises once logging is enabled.
+log_level = "INFO"
+markers = [
+    "live: hits the real OpenAI API — needs OPENAI_API_KEY, excluded from the default run",
+]

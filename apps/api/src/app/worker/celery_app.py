@@ -31,6 +31,10 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     result_expires=3600,
+    # Celery otherwise replaces sys.stdout with a proxy that logs through the
+    # root logger — which is where our own StreamHandler writes, so every
+    # in-task log line is swallowed by the recursion guard.
+    worker_redirect_stdouts=False,
 )
 
 celery_app.autodiscover_tasks(["app.worker"])

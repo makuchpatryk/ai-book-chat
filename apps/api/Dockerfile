@@ -8,13 +8,18 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    TIKTOKEN_CACHE_DIR=/opt/tiktoken
 
 WORKDIR /app
 
 # Dependency layer — cached until pyproject/uv.lock change.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
+
+# Bake the cl100k_base BPE file into the image so the worker never downloads it
+# mid-task (TIKTOKEN_CACHE_DIR above is where tiktoken looks at runtime).
+RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
 
 COPY alembic.ini ./
 COPY alembic ./alembic

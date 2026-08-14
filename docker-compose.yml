@@ -67,7 +67,9 @@ services:
 
   worker:
     build: ./apps/api
-    command: celery -A app.worker.celery_app worker -l info
+    # PDF parsing is CPU-bound; the default (one child per core) would let two
+    # big books saturate the machine.
+    command: celery -A app.worker.celery_app worker -l info --concurrency=2
     environment:
       <<: *backend_env
     volumes:
