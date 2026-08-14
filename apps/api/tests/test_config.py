@@ -17,3 +17,15 @@ def test_cors_origins_are_split_and_trimmed() -> None:
     settings = Settings(cors_origins="http://localhost:5173, http://127.0.0.1:5173 ,")
 
     assert settings.cors_origin_list == ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def test_retrieval_defaults() -> None:
+    settings = Settings()
+
+    assert settings.rerank_provider == "anthropic"
+    assert settings.rerank_model == "claude-haiku-4-5"
+    assert settings.retrieval_top_k == 30
+    assert settings.rerank_top_n == 8
+    assert settings.rerank_min_score == 5
+    assert settings.rerank_max_tokens == 2048
+    assert settings.ollama_base_url == "http://localhost:11434"

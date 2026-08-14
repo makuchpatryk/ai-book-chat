@@ -11,11 +11,12 @@ import pytest
 import sqlalchemy as sa
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db.models import Document
-from app.db.session import engine
+from app.db.session import AsyncSessionLocal, engine
 from app.db.sync_session import SyncSessionLocal
 from app.main import create_app
 
@@ -66,6 +67,14 @@ def sync_session() -> Iterator[Session]:
             session.execute(sa.delete(Document).where(Document.id == document_id))
         session.commit()
         session.close()
+
+
+@pytest.fixture
+async def app_session() -> AsyncIterator[AsyncSession]:
+    """Async database session for async tests (e.g., vector search)."""
+    async with AsyncSessionLocal() as session:
+        yield session
+        await session.close()
 
 
 @pytest.fixture

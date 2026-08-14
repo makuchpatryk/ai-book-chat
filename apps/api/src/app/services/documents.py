@@ -124,6 +124,11 @@ async def list_documents(session: AsyncSession) -> list[Document]:
     return list(result)
 
 
+async def get_document(session: AsyncSession, document_id: UUID) -> Document | None:
+    """Fetch a document by ID. None if unknown."""
+    return await session.scalar(select(Document).where(Document.id == document_id))
+
+
 async def get_document_detail(
     session: AsyncSession, document_id: UUID
 ) -> tuple[Document, int] | None:

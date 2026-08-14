@@ -50,9 +50,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:5173"
 
-    # Providers — anthropic is unused until the chat phase
+    # Providers
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
+    llm_api_key: str | None = None  # Shared key for re-ranking and generation
 
     # Ingestion — embeddings
     embedding_model: str = "text-embedding-3-small"
@@ -62,6 +63,15 @@ class Settings(BaseSettings):
     # Ingestion — chunking
     chunk_target_tokens: int = 600
     chunk_overlap_ratio: float = 0.15
+
+    # Retrieval — LLM provider and configuration
+    rerank_provider: str = "anthropic"  # anthropic | mistral | ollama
+    rerank_model: str = "claude-haiku-4-5"  # or mistral-large, etc.
+    retrieval_top_k: int = 30
+    rerank_top_n: int = 8
+    rerank_min_score: int = 5
+    rerank_max_tokens: int = 2048
+    ollama_base_url: str = "http://localhost:11434"
 
     @property
     def sync_database_url(self) -> str:

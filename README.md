@@ -3,8 +3,8 @@
 Upload a book (PDF), ask questions in natural language, get grounded answers with page citations.
 See [PRD.md](./PRD.md) for the product spec and [specs/](./specs) for implementation plans.
 
-**Current state: Phase 2.** PDFs can be uploaded, parsed, chunked and embedded. No retrieval,
-chat or frontend for it yet — verify with curl/psql.
+**Current state: Phase 3.** PDFs can be uploaded, parsed, chunked and embedded. Vector search with
+Claude Haiku re-ranking is live. No chat or frontend for it yet — verify with curl/psql.
 
 ## Stack
 
@@ -71,6 +71,64 @@ reach `READY`, but the vectors are noise — fine for exercising the plumbing, u
 Reference: a 300-page book (1800 chunks, 1.1 M tokens) reaches `READY` in ~14 s with the fake
 embedder; the real embedding leg adds roughly 18 sequential API batches.
 
+## Searching a document
+
+Once a document is `READY`, search for relevant chunks:
+
+```bash
+curl -X POST localhost:8000/documents/<id>/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "what is chapter 5 about?"}'
+# {"results": [...], "grounded": true, "reranked": true, "reason": null, "candidate_count": 30}
+```
+
+The pipeline:
+1. Embed the query with the same model used for chunking
+2. Vector search for 30 (configurable) nearest chunks using cosine distance + HNSW
+3. Re-rank the candidates with Claude Haiku (`claude-haiku-4-5`), scoring 0–10 for relevance
+4. Drop chunks below a relevance threshold (default: 5/10) and return the top 8 (configurable)
+
+A search returns `grounded: false` when:
+- No chunks match the query (`reason: "no_chunks"`), or
+- All chunks score below the threshold (`reason: "no_relevant_chunks"`)
+
+If the re-ranker fails (timeout, 5xx), the pipeline gracefully degrades: it returns the top
+chunks in vector order with `reranked: false`, leaving the decision to downstream callers.
+
+**Without `ANTHROPIC_API_KEY` the re-ranker uses a deterministic fake** (scores by term overlap).
+The endpoint still works; results are unranked.
+
+### Configuration
+
+Tuning knobs for `.env` (sensible defaults shown):
+
+```
+# How many candidates to fetch from vector search before re-ranking
+RETRIEVAL_TOP_K=30
+
+# Re-ranker model (must be Claude Haiku or similar fast model)
+RERANK_MODEL=claude-haiku-4-5
+
+# Max chunks returned after re-ranking
+RERANK_TOP_N=8
+
+# Minimum relevance score (0–10) to keep a chunk
+RERANK_MIN_SCORE=5
+
+# Max tokens sent to Claude for each re-rank call
+RERANK_MAX_TOKENS=2048
+```
+
+Per-request overrides are supported via query parameters:
+
+```bash
+curl -X POST localhost:8000/documents/<id>/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "...", "top_k": 15, "min_score": 6}'
+```
+
+Retrieval latency target: under 2 s p50 on a 300-page book (embed + search + re-rank combined).
+
 ## Commands
 
 Run from the repo root; Turborepo fans them out to both apps.
@@ -115,6 +173,7 @@ mounted at `/data/uploads`.
 ```
 apps/api/src/app/     FastAPI app, config, db (async + sync sessions), Celery worker
 apps/api/src/app/ingestion/  extract → sections → chunking → embeddings → pipeline
+apps/api/src/app/retrieval/  vector search → re-rank → grounding guard
 apps/api/alembic/     migrations
 apps/web/src/         routes, layouts, api client, shadcn components (types are app-local)
 docker-compose.yml    postgres, redis, api, worker
