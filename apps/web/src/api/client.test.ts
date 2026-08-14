@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, request } from "@/api/client";
+import { ApiError, request, upload } from "@/api/client";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -30,5 +30,31 @@ describe("request", () => {
 
     await expect(request("/health")).rejects.toThrow(ApiError);
     await expect(request("/health")).rejects.toThrow("503 database down");
+  });
+});
+
+describe("upload", () => {
+  it("sends FormData without JSON content-type", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      statusText: "Created",
+      text: () => Promise.resolve(JSON.stringify({ id: "doc-1" })),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const formData = new FormData();
+    await upload("/documents", formData);
+
+    const callArg = mockFetch.mock.calls[0]?.[1];
+    expect(callArg).not.toHaveProperty("headers.Content-Type");
+  });
+
+  it("throws ApiError on failure", async () => {
+    stubFetch(413, { detail: "file too large" });
+
+    const formData = new FormData();
+    await expect(upload("/documents", formData)).rejects.toThrow(ApiError);
+    await expect(upload("/documents", formData)).rejects.toThrow("413 file too large");
   });
 });

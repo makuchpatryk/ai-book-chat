@@ -3,3 +3,4 @@ packages:
 allowBuilds:
   # esbuild ships a platform binary via its install script — Vite needs it.
   esbuild: true
+  msw: set this to true or false

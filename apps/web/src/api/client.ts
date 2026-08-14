@@ -33,3 +33,23 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   return body as T;
 }
+
+export async function upload<T>(path: string, body: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    body,
+  });
+
+  const text = await response.text();
+  const data: unknown = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const detail =
+      typeof data === "object" && data !== null && "detail" in data
+        ? String((data as { detail: unknown }).detail)
+        : response.statusText;
+    throw new ApiError(response.status, `${response.status} ${detail}`, data);
+  }
+
+  return data as T;
+}
