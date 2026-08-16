@@ -13,17 +13,26 @@ from typing import Any, Protocol
 from openai import APIConnectionError, APITimeoutError, InternalServerError, OpenAI, RateLimitError
 from tenacity import (
     retry,
+    retry_if_exception,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential_jitter,
 )
 
 from app.config import Settings, get_settings
+from app.llm.hf_client import http_status
 
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 6
 _RETRYABLE = (RateLimitError, APIConnectionError, APITimeoutError, InternalServerError)
+# A rejected request, a bad token or a spent balance will not heal on attempt six.
+_HF_FATAL_STATUS = frozenset({400, 401, 402, 403, 404, 422})
+
+
+def _is_retryable_hf_error(exc: BaseException) -> bool:
+    """Retry transport blips and 5xx; let the caller's mistakes surface at once."""
+    return http_status(exc) not in _HF_FATAL_STATUS
 
 
 class Embedder(Protocol):
@@ -85,12 +94,14 @@ class HFEmbedder:
         self,
         client: Any,
         model: str,
+        dimensions: int,
         batch_size: int = 32,
         query_prompt_name: str | None = None,
         passage_prefix: str | None = None,
     ) -> None:
         self._client = client
         self._model = model
+        self._dimensions = dimensions
         self._batch_size = batch_size
         self._query_prompt_name = query_prompt_name
         self._passage_prefix = passage_prefix
@@ -100,11 +111,24 @@ class HFEmbedder:
                     for text in texts]
         vectors: list[list[float]] = []
         for start in range(0, len(prefixed), self._batch_size):
-            vectors.extend(self._embed_batch(prefixed[start : start + self._batch_size]))
+            batch_vectors = self._embed_batch(prefixed[start : start + self._batch_size])
+            # Checked on the way out of the first batch, not after the whole book:
+            # only the model knows its width, and it has to match the column.
+            self._check_width(batch_vectors)
+            vectors.extend(batch_vectors)
         return vectors
 
+    def _check_width(self, vectors: list[list[float]]) -> None:
+        """Raise unless the model's vectors fit `chunks.embedding`."""
+        if vectors and len(vectors[0]) != self._dimensions:
+            raise ValueError(
+                f"{self._model} returned {len(vectors[0])}-dimensional vectors, "
+                f"expected {self._dimensions}; set EMBEDDING_DIMENSIONS to the model's "
+                f"width and migrate the chunks.embedding column to match"
+            )
+
     @retry(
-        retry=retry_if_exception_type(Exception),
+        retry=retry_if_exception(_is_retryable_hf_error),
         wait=wait_exponential_jitter(initial=1, max=30),
         stop=stop_after_attempt(MAX_ATTEMPTS),
         reraise=True,
@@ -174,6 +198,10 @@ def _build_hf_embedder(settings: Settings) -> Embedder:
     `chunks.embedding` is a fixed-width `Vector`, so a model with a different
     dimension has to be a migration, not a config change. Failing here beats a
     `DataError` thousands of chunks into a re-ingest.
+
+    This half only catches a configured width the column cannot hold; the model's
+    real width is unknown until it answers, so `HFEmbedder` checks that on the
+    first batch.
     """
     # Imported lazily: the vector width lives with the model, and this keeps the
     # ingestion module importable without the ORM.
@@ -199,6 +227,7 @@ def _build_hf_embedder(settings: Settings) -> Embedder:
     return HFEmbedder(
         client=InferenceClient(api_key=token, bill_to=settings.hf_bill_to),
         model=settings.hf_embedding_model,
+        dimensions=settings.embedding_dimensions,
         batch_size=settings.embedding_batch_size,
         passage_prefix=settings.hf_embedding_passage_prefix,
     )

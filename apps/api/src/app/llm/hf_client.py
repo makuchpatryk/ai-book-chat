@@ -51,9 +51,21 @@ def build_hf_async_client(settings: Settings) -> AsyncOpenAI:
     return AsyncOpenAI(api_key=hf_api_key(settings), base_url=settings.hf_base_url)
 
 
+def http_status(exc: BaseException) -> int | None:
+    """HTTP status off a provider SDK error, or None if it is not an HTTP failure.
+
+    The two SDKs disagree: `openai` puts `status_code` on the exception,
+    `huggingface_hub` wraps the `httpx` response instead.
+    """
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+    return status if isinstance(status, int) else None
+
+
 def is_billing_error(exc: BaseException) -> bool:
     """True for HTTP 402 — retrying a spent balance only delays the failure."""
-    return getattr(exc, "status_code", None) == _BILLING_STATUS
+    return http_status(exc) == _BILLING_STATUS
 
 
 def strip_reasoning(text: str) -> str:

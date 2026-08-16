@@ -2,6 +2,7 @@ from typing import Any
 
 import httpx
 import pytest
+from huggingface_hub.errors import HfHubHTTPError
 from openai import RateLimitError
 from tenacity import wait_none
 
@@ -106,22 +107,40 @@ def test_build_embedder_falls_back_to_the_fake_without_a_key() -> None:
 
 
 class _StubInferenceClient:
-    def __init__(self, dimensions: int = 4) -> None:
+    def __init__(self, dimensions: int = 4, errors: list[Exception] | None = None) -> None:
         self.dimensions = dimensions
+        self.errors = errors or []
         self.batches: list[list[str]] = []
 
     def feature_extraction(
         self, *, text: list[str], model: str, normalize: bool, **kwargs: Any
     ) -> list[list[float]]:
         self.batches.append(text)
+        if self.errors:
+            raise self.errors.pop(0)
         return [[float(offset)] * self.dimensions for offset in range(len(text))]
+
+
+def _hf_http_error(status: int) -> HfHubHTTPError:
+    """A real `huggingface_hub` error: it carries its status on `.response`, not itself."""
+    request = httpx.Request("POST", "https://router.huggingface.co/models/e5")
+    return HfHubHTTPError("nope", response=httpx.Response(status, request=request))
+
+
+@pytest.fixture
+def no_hf_retry_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the retry behaviour, drop the backoff sleeps."""
+    monkeypatch.setattr(HFEmbedder._embed_batch.retry, "wait", wait_none())
+
+
+def _hf_embedder(stub: _StubInferenceClient, **kwargs: Any) -> HFEmbedder:
+    kwargs.setdefault("dimensions", stub.dimensions)
+    return HFEmbedder(client=stub, model="intfloat/multilingual-e5", **kwargs)
 
 
 def test_hf_embedder_batches_and_preserves_order() -> None:
     stub = _StubInferenceClient()
-    embedder = HFEmbedder(client=stub, model="intfloat/multilingual-e5", batch_size=2)
-
-    vectors = embedder.embed(["a", "b", "c"])
+    vectors = _hf_embedder(stub, batch_size=2).embed(["a", "b", "c"])
 
     assert [len(batch) for batch in stub.batches] == [2, 1]
     assert vectors == [[0.0] * 4, [1.0] * 4, [0.0] * 4]
@@ -129,9 +148,8 @@ def test_hf_embedder_batches_and_preserves_order() -> None:
 
 def test_hf_embedder_applies_the_passage_prefix() -> None:
     stub = _StubInferenceClient()
-    embedder = HFEmbedder(client=stub, model="e5", passage_prefix="passage: ")
 
-    embedder.embed(["chapter one"])
+    _hf_embedder(stub, passage_prefix="passage: ").embed(["chapter one"])
 
     assert stub.batches == [["passage: chapter one"]]
 
@@ -139,9 +157,41 @@ def test_hf_embedder_applies_the_passage_prefix() -> None:
 def test_hf_embedder_sends_no_prefix_by_default() -> None:
     stub = _StubInferenceClient()
 
-    HFEmbedder(client=stub, model="e5").embed(["chapter one"])
+    _hf_embedder(stub).embed(["chapter one"])
 
     assert stub.batches == [["chapter one"]]
+
+
+def test_hf_embedder_rejects_vectors_the_column_cannot_hold() -> None:
+    # The model answers 1024-wide while the column holds 1536: the failure the
+    # build-time guard cannot see, because only the model knows its width.
+    stub = _StubInferenceClient(dimensions=1024)
+    embedder = _hf_embedder(stub, dimensions=1536, batch_size=1)
+
+    with pytest.raises(ValueError, match="1024-dimensional"):
+        embedder.embed(["a", "b", "c"])
+
+    # Failed on the first batch, not after embedding the whole document.
+    assert len(stub.batches) == 1
+
+
+@pytest.mark.parametrize("status", [400, 401, 402, 403, 404, 422])
+def test_hf_embedder_does_not_retry_a_fatal_status(status: int, no_hf_retry_wait: None) -> None:
+    stub = _StubInferenceClient(errors=[_hf_http_error(status) for _ in range(MAX_ATTEMPTS)])
+
+    with pytest.raises(HfHubHTTPError):
+        _hf_embedder(stub).embed(["a"])
+
+    assert len(stub.batches) == 1
+
+
+def test_hf_embedder_retries_a_transient_failure(no_hf_retry_wait: None) -> None:
+    stub = _StubInferenceClient(errors=[_hf_http_error(503), httpx.ConnectError("boom")])
+
+    vectors = _hf_embedder(stub).embed(["a"])
+
+    assert len(stub.batches) == 3
+    assert vectors == [[0.0] * 4]
 
 
 def test_build_embedder_refuses_a_dimension_the_column_cannot_hold() -> None:
