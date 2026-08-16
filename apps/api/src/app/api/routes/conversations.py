@@ -202,13 +202,26 @@ async def send_message(
                 finally:
                     await queue.put(None)
 
+            async def stop_producer() -> None:
+                """Cancel the producer and wait for it to actually stop.
+
+                cancel() only requests cancellation; the task may still be mid-query
+                on stream_db, and an AsyncSession cannot be driven by two coroutines
+                at once. Anything that touches stream_db afterwards must await this.
+                """
+                if producer_task is None or producer_task.done():
+                    return
+                producer_task.cancel()
+                await asyncio.gather(producer_task, return_exceptions=True)
+
+            answer_text = ""
+            retrieved_chunks = []
+            grounded = False
+            truncated = False
+            persisted = False
+
             try:
                 producer_task = asyncio.create_task(producer())
-
-                answer_text = ""
-                retrieved_chunks = []
-                grounded = False
-                truncated = False
 
                 while True:
                     try:
@@ -248,14 +261,27 @@ async def send_message(
                     elif isinstance(event, DoneEvent):
                         grounded = event.grounded
                         truncated = event.truncated
-                        persisted_message = await persist_assistant_message(
-                            stream_db,
-                            conversation_id,
-                            answer_text,
-                            retrieved_chunks,
-                            grounded=grounded,
-                            truncated=truncated,
-                        )
+                        # Safe to use stream_db here: the pipeline issues no further
+                        # queries after it yields DoneEvent.
+                        try:
+                            persisted_message = await persist_assistant_message(
+                                stream_db,
+                                conversation_id,
+                                answer_text,
+                                retrieved_chunks,
+                                grounded=grounded,
+                                truncated=truncated,
+                            )
+                        except Exception as exc:
+                            # A failed save must not tear down the response mid-body:
+                            # the client has already seen the answer stream.
+                            logger.exception(f"failed to persist assistant message: {exc}")
+                            await stream_db.rollback()
+                            payload = ErrorPayload(detail="failed to save the answer")
+                            yield f"event: error\ndata: {payload.model_dump_json()}\n\n"
+                            break
+
+                        persisted = True
                         payload = DonePayload(
                             message_id=str(persisted_message.id),
                             grounded=grounded,
@@ -267,23 +293,31 @@ async def send_message(
                         payload = ErrorPayload(detail=event.detail)
                         yield f"event: error\ndata: {payload.model_dump_json()}\n\n"
 
-            except anyio.get_cancelled_exc_class() as e:
-                # Client disconnected — persist with truncated flag
-                if producer_task:
-                    producer_task.cancel()
+            except anyio.get_cancelled_exc_class():
+                # Client disconnected — persist what we streamed, flagged truncated.
                 with anyio.CancelScope(shield=True):
-                    await persist_assistant_message(
-                        stream_db,
-                        conversation_id,
-                        answer_text,
-                        retrieved_chunks,
-                        grounded=grounded,
-                        truncated=True,
-                    )
+                    await stop_producer()
+                    if not persisted:
+                        try:
+                            await persist_assistant_message(
+                                stream_db,
+                                conversation_id,
+                                answer_text,
+                                retrieved_chunks,
+                                grounded=grounded,
+                                truncated=True,
+                            )
+                        except Exception as exc:
+                            logger.exception(
+                                f"failed to persist truncated assistant message: {exc}"
+                            )
+                            await stream_db.rollback()
                 raise
             finally:
-                if producer_task and not producer_task.done():
-                    producer_task.cancel()
+                # stream_db is closed on the way out of the `async with`; the
+                # producer must be off it first.
+                with anyio.CancelScope(shield=True):
+                    await stop_producer()
 
     return StreamingResponse(
         event_generator(),

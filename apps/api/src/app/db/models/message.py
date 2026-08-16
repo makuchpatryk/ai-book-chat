@@ -27,7 +27,14 @@ class Message(Base):
         ForeignKey("conversations.id", ondelete="CASCADE"), index=True
     )
     role: Mapped[MessageRole] = mapped_column(
-        Enum(MessageRole, name="message_role", native_enum=True)
+        # The pg enum labels are the member *values* ("user"), not the names
+        # ("USER") SQLAlchemy would send by default.
+        Enum(
+            MessageRole,
+            name="message_role",
+            native_enum=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        )
     )
     content: Mapped[str] = mapped_column(Text)
     order_index: Mapped[int]
