@@ -174,8 +174,8 @@ GET    /documents                     → Document[]
 GET    /documents/{id}                → Document + sections + chunk_count
 POST   /documents/{id}/search         { query, top_k?, min_score? }
                                       → { results[], grounded, reranked, reason, candidate_count }
-POST   /documents/{id}/retry          → { status }                    (Phase 6 — not built)
-DELETE /documents/{id}                cascades chunks + conversations (Phase 6 — not built)
+POST   /documents/{id}/retry          → 200 DocumentRead / 409 ineligible / 404 unknown
+DELETE /documents/{id}                → 204 / 404 unknown
 
 POST   /documents/{id}/conversations  → { id }
 GET    /documents/{id}/conversations  → Conversation[]
@@ -250,15 +250,18 @@ Upload + document list + status polling, then the chat UI with streaming and cit
   refresh restores the thread.
 - Answers render as markdown (react-markdown + remark-gfm) with throttled flushes during streaming.
 - Citations expand into a `SourcesPanel` fed by the `sources` SSE event — no second fetch.
-- Deferred to Phase 6: delete document / retry document (endpoints don't exist yet) and delete
-  conversation (endpoint exists, affordance deferred with them).
+- Delete document / retry document / delete conversation UX surfaces with confirm dialogs (Phase 6).
 
-**Phase 6 — Hardening** ← next
-Retry endpoint, `DELETE /documents/{id}` cascade, delete-conversation UI, global error surfaces,
-token/cost logging for generation (re-ranking already logs usage; `GenerationDone` carries
-input/output tokens but nothing logs or persists them), wiring the unused
-`chat_heartbeat_seconds` setting or dropping it. Size/type validation already ships in Phase 2
-(50 MB cap, `%PDF-` magic check).
+**Phase 6 — Hardening** ✓ shipped
+- `DELETE /documents/{id}` removes row and cascades to chunks, sections, conversations, messages, sources; unlinks PDF file.
+- `POST /documents/{id}/retry` moves FAILED or stuck (PENDING|PARSING|EMBEDDING older than 30 min) back to PENDING, clears chunks/sections, re-enqueues.
+- Retry re-run idempotent: `_persist` deletes existing chunks/sections first.
+- Chat correctness: `DoneEvent` drops fabricated `message_id`; route owns persistence and id; `truncated` flag set from `stop_reason == "max_tokens"`.
+- Generation/rewrite usage logging: `phase`, `provider`, `model`, `input_tokens`, `output_tokens` per call.
+- Re-ranker degrade guard: when scoring fails, filter candidates by `distance <= 0.75`, return `grounded=false, reason="rerank_degraded_no_match"` if nothing survives.
+- SSE heartbeat: `wait_for(queue.get(), timeout=chat_heartbeat_seconds)` emits `: ping\n\n` comment frames on timeout; browser `parseSse` drops them.
+- Frontend: delete document/conversation buttons (behind confirm dialogs), retry (FAILED only), global error toast surface via QueryClient cache hooks, error boundary on render crash.
+- Deviations: three bugfixes (message_id, truncated, degrade guard) not in Phase 5 scope; `stuck_after_minutes=30` matches Celery `time_limit=1800`.
 
 ---
 
