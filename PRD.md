@@ -13,8 +13,8 @@ Upload a book (PDF), ask questions in natural language, get grounded, analytical
 | Storage | PostgreSQL 16 + pgvector (docker-compose) |
 | Background jobs | Celery + Redis (docker-compose) |
 | Embeddings | OpenAI `text-embedding-3-small` (1536d) |
-| LLM (default) | Anthropic Claude Haiku / Sonnet |
-| LLM (configurable) | Mistral, Ollama, or offline fallback (term overlap) |
+| LLM (default) | Hugging Face Inference Providers (`openai/gpt-oss-120b:cheapest`) |
+| LLM (configurable) | Anthropic Claude, Mistral, Ollama, or offline fallback (term overlap) |
 | Retrieval | Top-k vector search + LLM re-rank (pluggable) |
 | Chunking | Chapter/section aware |
 | Citations | Page number only |
@@ -135,13 +135,13 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
 
 ```
 1. Query rewriting
-   last N turns + new question → Claude Haiku → standalone question
+   last N turns + new question → rewrite model (gpt-oss-20b) → standalone question
 
 2. Vector search
    embed(standalone_q) → cosine top-30, scoped to document_id
 
 3. Re-rank (pluggable provider)
-   Anthropic Claude Haiku | Mistral | Ollama | FakeReranker
+   Hugging Face router | Anthropic Claude Haiku | Mistral | Ollama | FakeReranker
    → scores each candidate 0–10 for relevance
    → keep top-8, drop anything below threshold
 
@@ -149,7 +149,7 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
    no chunk above threshold → return "not in this document", skip generation
 
 5. Generate
-   Claude Sonnet, streamed
+   chat model via the HF router (gpt-oss-120b), streamed
    system: analytical answer, cite [p.N], never invent
    context: 8 chunks with page metadata + last 6 turns
 
@@ -158,7 +158,10 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
 ```
 
 **Re-ranker providers:**
-- **Anthropic** (default): Claude Haiku via structured output, retries on failure
+- **Hugging Face** (default): OpenAI-compatible router at `router.huggingface.co/v1`; asks for a
+  JSON schema, falls back to prompt-declared JSON when the routed provider rejects it, and tolerates
+  markdown fences and `<think>` blocks in the reply. 402 (out of credits) is not retried.
+- **Anthropic**: Claude Haiku via structured output, retries on failure
 - **Mistral**: Large model via Mistral API, JSON response parsing
 - **Ollama**: Local HTTP endpoint (no API key needed)
 - **FakeReranker**: Deterministic fallback (term-overlap scoring, no LLM call)
@@ -262,6 +265,28 @@ Upload + document list + status polling, then the chat UI with streaming and cit
 - SSE heartbeat: `wait_for(queue.get(), timeout=chat_heartbeat_seconds)` emits `: ping\n\n` comment frames on timeout; browser `parseSse` drops them.
 - Frontend: delete document/conversation buttons (behind confirm dialogs), retry (FAILED only), global error toast surface via QueryClient cache hooks, error boundary on render crash.
 - Deviations: three bugfixes (message_id, truncated, degrade guard) not in Phase 5 scope; `stuck_after_minutes=30` matches Celery `time_limit=1800`.
+
+**Phase 7 — Hugging Face Inference Providers** ✓ shipped
+- New default provider for chat, rewrite and re-rank: the OpenAI-compatible router at
+  `https://router.huggingface.co/v1`, reached with the already-present `openai` client.
+  `CHAT_PROVIDER`/`RERANK_PROVIDER`=`anthropic` restores the old behaviour with no code change.
+- `app/llm/hf_client.py` owns the router: client builders, `X-HF-Bill-To`, and the two cleaning
+  helpers (`strip_reasoning`, `extract_json_object`) that make parsing survive `:cheapest` routing
+  landing on a different open-weight model between calls.
+- `HFGenerator` streams with `stream_options={"include_usage": True}` — without it no usage block
+  arrives and the cost measurement is silently lost. Usage and `finish_reason` are captured
+  independently because the usage chunk carries an empty `choices`; missing usage degrades to a
+  tiktoken estimate flagged `estimated: true` in the usage log rather than to `None`.
+- `truncated` now reads `stop_reason in ("max_tokens", "length")` — Anthropic's vocabulary and the
+  OpenAI-compatible one.
+- HTTP 402 (credits exhausted) is surfaced as a billing-specific error and excluded from the
+  `tenacity` retry, which would otherwise delay the failure by a minute.
+- `HFEmbedder` is built and unit-tested but **not** enabled: `EMBEDDING_PROVIDER` stays `openai`
+  because `chunks.embedding` is a fixed `Vector(1536)` and the HF models are 1024/4096-dimensional.
+  `build_embedder` refuses to construct it when the configured dimension does not match the column.
+- Deviation: the `Generator` protocol's `stream` signature was corrected from `async def` to `def`
+  returning `AsyncIterator` (an async generator returns the iterator, not a coroutine) — typing
+  only, no runtime change.
 
 ---
 

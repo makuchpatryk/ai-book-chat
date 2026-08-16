@@ -54,19 +54,26 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     llm_api_key: str | None = None  # Shared key for re-ranking and generation
+    hf_token: str | None = None  # Hugging Face Inference Providers; falls back to llm_api_key
+    hf_base_url: str = "https://router.huggingface.co/v1"
+    hf_bill_to: str | None = None  # X-HF-Bill-To: charge an org instead of the user
 
     # Ingestion — embeddings
+    embedding_provider: str = "openai"  # openai | huggingface
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
     embedding_batch_size: int = 100
+    hf_embedding_model: str = "intfloat/multilingual-e5-large-instruct"
+    hf_embedding_query_prefix: str = "query: "
+    hf_embedding_passage_prefix: str = "passage: "
 
     # Ingestion — chunking
     chunk_target_tokens: int = 600
     chunk_overlap_ratio: float = 0.15
 
     # Retrieval — LLM provider and configuration
-    rerank_provider: str = "anthropic"  # anthropic | mistral | ollama
-    rerank_model: str = "claude-haiku-4-5"  # or mistral-large, etc.
+    rerank_provider: str = "huggingface"  # huggingface | anthropic | mistral | ollama
+    rerank_model: str = "openai/gpt-oss-120b:cheapest"  # or claude-haiku-4-5, mistral-large, etc.
     retrieval_top_k: int = 30
     rerank_top_n: int = 8
     rerank_min_score: int = 5
@@ -74,9 +81,9 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
 
     # Chat — LLM provider and configuration
-    chat_provider: str = "anthropic"  # anthropic | mistral | ollama
-    chat_model: str = "claude-sonnet-5"
-    chat_rewrite_model: str = "claude-haiku-4-5"
+    chat_provider: str = "huggingface"  # huggingface | anthropic | mistral | ollama
+    chat_model: str = "openai/gpt-oss-120b:cheapest"
+    chat_rewrite_model: str = "openai/gpt-oss-20b:cheapest"
     chat_max_tokens: int = 2048
     chat_history_turns: int = 6
     chat_heartbeat_seconds: float = 15.0

@@ -7,6 +7,7 @@ import anyio
 
 from app.chat.prompts import REWRITE_PROMPT
 from app.config import Settings, get_settings
+from app.llm.hf_client import build_hf_sync_client, hf_api_key, hf_extra_headers, message_text
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,52 @@ class FakeRewriter:
     def rewrite(self, question: str, history: str) -> str:
         """Return question unchanged."""
         return question
+
+
+class HFRewriter:
+    """Hugging Face Inference Providers query rewriter (OpenAI-compatible router)."""
+
+    def __init__(
+        self, client: Any, model: str, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        self._client = client
+        self._model = model
+        self._extra_headers = extra_headers or {}
+
+    def rewrite(self, question: str, history: str) -> str:
+        """Rewrite question via the HF router. Never raises."""
+        try:
+            completion = self._client.chat.completions.create(
+                model=self._model,
+                max_tokens=512,
+                messages=[
+                    {"role": "system", "content": REWRITE_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"{history}\n\nLatest question: {question}",
+                    },
+                ],
+                extra_headers=self._extra_headers,
+            )
+            result = message_text(completion.choices[0])
+            if not result or len(result) > 500:
+                logger.warning("rewrite produced empty or oversized result, using original")
+                return question
+            usage = getattr(completion, "usage", None)
+            logger.info(
+                "rewrite usage",
+                extra={
+                    "phase": "rewrite",
+                    "provider": "huggingface",
+                    "model": self._model,
+                    "input_tokens": getattr(usage, "prompt_tokens", None),
+                    "output_tokens": getattr(usage, "completion_tokens", None),
+                },
+            )
+            return result
+        except Exception as e:
+            logger.warning(f"rewrite failed ({e}), using original question")
+            return question
 
 
 class AnthropicRewriter:
@@ -153,6 +200,17 @@ def build_rewriter(settings: Settings | None = None) -> Rewriter:
     if provider == "ollama":
         return OllamaRewriter(
             base_url=settings.ollama_base_url, model=settings.chat_rewrite_model
+        )
+
+    # Hugging Face has its own key, falling back to LLM_API_KEY
+    if provider == "huggingface":
+        if not hf_api_key(settings):
+            logger.warning("HF_TOKEN unset — using FakeRewriter; no query rewriting")
+            return FakeRewriter()
+        return HFRewriter(
+            client=build_hf_sync_client(settings),
+            model=settings.chat_rewrite_model,
+            extra_headers=hf_extra_headers(settings),
         )
 
     # Fallback to FakeRewriter if no key is set for other providers

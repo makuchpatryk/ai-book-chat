@@ -18,6 +18,7 @@ dependencies = [
     "pymupdf>=1.25",
     "openai>=1.60",
     "anthropic>=0.69",
+    "huggingface-hub>=0.28",
     "tiktoken>=0.8",
     "tenacity>=9.0",
 ]
@@ -75,5 +76,5 @@ addopts = "-q -m 'not live'"
 # a reserved key there (e.g. "filename") only raises once logging is enabled.
 log_level = "INFO"
 markers = [
-    "live: hits the real OpenAI API — needs OPENAI_API_KEY, excluded from the default run",
+    "live: hits a real provider API — needs OPENAI_API_KEY or HF_TOKEN, excluded from the default run",
 ]

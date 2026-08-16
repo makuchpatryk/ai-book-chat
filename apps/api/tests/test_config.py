@@ -22,8 +22,8 @@ def test_cors_origins_are_split_and_trimmed() -> None:
 def test_retrieval_defaults() -> None:
     settings = Settings()
 
-    assert settings.rerank_provider == "anthropic"
-    assert settings.rerank_model == "claude-haiku-4-5"
+    assert settings.rerank_provider == "huggingface"
+    assert settings.rerank_model == "openai/gpt-oss-120b:cheapest"
     assert settings.retrieval_top_k == 30
     assert settings.rerank_top_n == 8
     assert settings.rerank_min_score == 5
@@ -34,9 +34,19 @@ def test_retrieval_defaults() -> None:
 def test_chat_defaults() -> None:
     settings = Settings()
 
-    assert settings.chat_provider == "anthropic"
-    assert settings.chat_model == "claude-sonnet-5"
-    assert settings.chat_rewrite_model == "claude-haiku-4-5"
+    assert settings.chat_provider == "huggingface"
+    assert settings.chat_model == "openai/gpt-oss-120b:cheapest"
+    assert settings.chat_rewrite_model == "openai/gpt-oss-20b:cheapest"
     assert settings.chat_max_tokens == 2048
     assert settings.chat_history_turns == 6
     assert settings.chat_heartbeat_seconds == 15.0
+
+
+def test_huggingface_defaults() -> None:
+    settings = Settings()
+
+    assert settings.hf_base_url == "https://router.huggingface.co/v1"
+    assert settings.hf_bill_to is None
+    assert settings.embedding_provider == "openai"
+    assert settings.embedding_model == "text-embedding-3-small"
+    assert settings.hf_embedding_model == "intfloat/multilingual-e5-large-instruct"

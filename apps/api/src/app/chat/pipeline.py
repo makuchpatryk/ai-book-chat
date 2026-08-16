@@ -138,7 +138,9 @@ async def answer(
                 answer_text += event.text
                 yield TokenEvent(text=event.text)
             elif isinstance(event, GenerationDone):
-                truncated = event.stop_reason == "max_tokens"
+                # "max_tokens" is Anthropic's vocabulary, "length" is the
+                # OpenAI-compatible one the HF router speaks.
+                truncated = event.stop_reason in ("max_tokens", "length")
                 logger.info(
                     "generation usage",
                     extra={
@@ -147,6 +149,7 @@ async def answer(
                         "model": settings.chat_model,
                         "input_tokens": event.input_tokens,
                         "output_tokens": event.output_tokens,
+                        "estimated": event.estimated,
                         "conversation_id": str(conversation_id),
                         "document_id": str(conversation.document_id),
                     },
