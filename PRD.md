@@ -8,9 +8,10 @@ Upload a book (PDF), ask questions in natural language, get grounded, analytical
 
 | Area | Choice |
 |---|---|
-| Frontend | React + TypeScript + Vite |
+| Frontend | React 19 + TypeScript + Vite (TanStack Query, React Router, Tailwind 4) |
 | Backend | FastAPI (Python) |
 | Storage | PostgreSQL 16 + pgvector (docker-compose) |
+| Background jobs | Celery + Redis (docker-compose) |
 | Embeddings | OpenAI `text-embedding-3-small` (1536d) |
 | LLM (default) | Anthropic Claude Haiku / Sonnet |
 | LLM (configurable) | Mistral, Ollama, or offline fallback (term overlap) |
@@ -70,8 +71,9 @@ The user uploads a document and asks questions about it. Answers are grounded st
 ```
 documents
   id, filename, title, page_count, status, error_message,
-  file_path, created_at
+  file_path, content_hash, chunking_strategy, created_at, updated_at
   status: PENDING | PARSING | EMBEDDING | READY | FAILED
+  UNIQUE(content_hash)          -- re-uploading the same bytes returns the existing row
 
 sections                       -- detected chapters
   id, document_id, title, order_index, start_page, end_page
@@ -82,7 +84,7 @@ chunks
   INDEX: hnsw on embedding (cosine)
 
 conversations
-  id, document_id, title, created_at, updated_at
+  id, document_id, title (nullable — set from the first question), created_at, updated_at
 
 messages
   id, conversation_id, role (user|assistant), content, order_index,
@@ -100,7 +102,7 @@ message_sources                -- citations
 
 ```
 upload → save file → PENDING
-  ↓ background task
+  ↓ Celery task (Redis broker), worker concurrency 2
 1. Extract text per page          PyMuPDF  (was pdfplumber — see note below)
 2. Detect sections                PDF outline/bookmarks
                                   → fallback: heading heuristics (font size, numbering)
@@ -111,7 +113,14 @@ upload → save file → PENDING
 6. READY
 ```
 
-Any failure sets `FAILED` with `error_message`; partial chunks are rolled back. A retry endpoint re-runs from step 1.
+Any failure sets `FAILED` with `error_message`; partial chunks are rolled back. A retry endpoint re-runs from step 1 (Phase 6, not yet built).
+
+**Deviation from §1 (Phase 2): Celery + Redis instead of in-process background tasks.** PDF parsing
+and embedding are CPU- and IO-heavy and outlive a request; FastAPI `BackgroundTasks` would tie them
+to the API process, lose them on reload/restart, and make the retry endpoint unimplementable. The
+worker runs as its own docker-compose service (`--concurrency=2`, since two 300-page books would
+otherwise saturate the box). Cost: two extra services (Redis, worker) and a sync DB session
+(`app.db.sync_session`) alongside the async one the API uses.
 
 **Deviation from §1 (Phase 2): PyMuPDF replaces pdfplumber.** pdfplumber needs ~0.3–1 s per page,
 which alone puts the 2-minute budget for a 300-page book at risk, and it exposes neither the outline
@@ -160,10 +169,13 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
 
 ```
 POST   /documents                     multipart → { id, status }
+                                      201 on create; 200 + existing row when content_hash matches
 GET    /documents                     → Document[]
-GET    /documents/{id}                → Document + sections
-POST   /documents/{id}/retry          → { status }
-DELETE /documents/{id}                cascades chunks + conversations
+GET    /documents/{id}                → Document + sections + chunk_count
+POST   /documents/{id}/search         { query, top_k?, min_score? }
+                                      → { results[], grounded, reranked, reason, candidate_count }
+POST   /documents/{id}/retry          → { status }                    (Phase 6 — not built)
+DELETE /documents/{id}                cascades chunks + conversations (Phase 6 — not built)
 
 POST   /documents/{id}/conversations  → { id }
 GET    /documents/{id}/conversations  → Conversation[]
@@ -185,30 +197,42 @@ POST   /conversations/{id}/messages   { content }
 
 ```
 src/
-  api/            typed client, SSE handling
+  api/            client (typed fetch), sse (POST + ReadableStream parser),
+                  documents, conversations, chat, health
   features/
-    documents/    UploadDropzone, DocumentList, StatusBadge (polls while processing)
-    chat/         ConversationList, MessageList, MessageInput,
-                  StreamingMessage, PageCitations
-  components/ui/
-  types/
+    documents/    UploadDropzone, DocumentList, DocumentListItem, StatusBadge,
+                  useDocuments (polls 2 s while PENDING|PARSING|EMBEDDING), useUploadDocument
+    chat/         ConversationList, MessageList, MessageBubble, MessageInput,
+                  StreamingMessage, MarkdownAnswer, PageCitations, SourcesPanel,
+                  useChatStream, useConversations, useCreateConversation, useMessages, useDocument
+  components/ui/  shadcn primitives (alert, badge, button, card, input, separator, skeleton, textarea)
+  layouts/        AppLayout
+  routes/         DocumentsPage, DocumentPage, ChatPage, HealthPage
+  lib/  types/
 ```
 
 Layout: sidebar (documents → conversations), main panel (chat).
+
+Routes are deep-linkable — `/documents/:documentId/c/:conversationId` — so a refresh restores the
+thread (and an answer that finished while unmounted) from `GET /conversations/{id}/messages`.
+
+Streaming uses `fetch` + `ReadableStream`, not `EventSource`: the message endpoint is a `POST` and
+`EventSource` is GET-only.
 
 ---
 
 ## 8. Delivery phases
 
-**Phase 1 — Infrastructure**
-docker-compose (Postgres + pgvector), FastAPI skeleton, Alembic migrations, config/env handling.
+**Phase 1 — Infrastructure** ✓ DONE
+docker-compose (Postgres + pgvector, Redis, api, worker), FastAPI skeleton, Alembic migrations,
+config/env handling.
 
-**Phase 2 — Ingestion**
+**Phase 2 — Ingestion** ✓ DONE
 Upload endpoint, text extraction, section detection, chunking, embedding, status machine.
 *Verifiable: upload a book, inspect chunks and sections in the DB.*
 
-**Phase 3 — Retrieval**
-Vector search, re-ranker, grounding guard.
+**Phase 3 — Retrieval** ✓ DONE
+Vector search, re-ranker, grounding guard, `POST /documents/{id}/search`.
 *Verifiable: a query endpoint returns sensible chunks with correct pages.*
 
 **Phase 4 — Chat** ✓ DONE
@@ -219,11 +243,22 @@ Conversations, messages, query rewriting, streaming generation, citation persist
 - SSE `sources` event is a superset: includes chunk details (chunk_id, page_start, page_end, section_title, snippet) not just page numbers. Allows citation UI to render without a second fetch.
 - SSE includes `error` event for in-stream failures (rewrite, generation, etc.).
 
-**Phase 5 — Frontend**
+**Phase 5 — Frontend** ✓ DONE
 Upload + document list + status polling, then the chat UI with streaming and citations.
+*Deviations from §7:*
+- Split into `layouts/` + `routes/` with deep-linkable URLs instead of local selection state, so
+  refresh restores the thread.
+- Answers render as markdown (react-markdown + remark-gfm) with throttled flushes during streaming.
+- Citations expand into a `SourcesPanel` fed by the `sources` SSE event — no second fetch.
+- Deferred to Phase 6: delete document / retry document (endpoints don't exist yet) and delete
+  conversation (endpoint exists, affordance deferred with them).
 
-**Phase 6 — Hardening**
-Retry, delete cascade, error states, token logging, size/type validation.
+**Phase 6 — Hardening** ← next
+Retry endpoint, `DELETE /documents/{id}` cascade, delete-conversation UI, global error surfaces,
+token/cost logging for generation (re-ranking already logs usage; `GenerationDone` carries
+input/output tokens but nothing logs or persists them), wiring the unused
+`chat_heartbeat_seconds` setting or dropping it. Size/type validation already ships in Phase 2
+(50 MB cap, `%PDF-` magic check).
 
 ---
 
