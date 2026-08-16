@@ -71,10 +71,28 @@ def sync_session() -> Iterator[Session]:
 
 @pytest.fixture
 async def app_session() -> AsyncIterator[AsyncSession]:
-    """Async database session for async tests (e.g., vector search)."""
+    """Async database session for async tests (e.g., vector search).
+
+    Cleans up after itself the same way `sync_session` does: documents that
+    appeared while the fixture was active are deleted (cascades take sections,
+    chunks and conversations with them). Without this a test run leaves rows
+    behind that collide with `documents.content_hash` on the next run, and a
+    real ingested book in the dev database would accumulate junk beside it.
+    """
     async with AsyncSessionLocal() as session:
-        yield session
-        await session.close()
+        before = set(await session.scalars(sa.select(Document.id)))
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            after = set(await session.scalars(sa.select(Document.id)))
+            for document_id in after - before:
+                await session.execute(sa.delete(Document).where(Document.id == document_id))
+            await session.commit()
+
+    # Same reason as the `client` fixture: asyncpg connections belong to the loop
+    # that opened them, and the next test gets a fresh one.
+    await engine.dispose()
 
 
 @pytest.fixture

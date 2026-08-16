@@ -1,13 +1,13 @@
 """Tests for chat pipeline correctness."""
 
+import uuid
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.chat.generate import FakeGenerator, GenerationDone, TextDelta
+from app.chat.generate import FakeGenerator
 from app.chat.pipeline import DoneEvent, answer
-from app.db.models import Document, DocumentStatus, Conversation, Chunk, Section
-from uuid import uuid4
-import uuid
+from app.db.models import Chunk, Conversation, Document, DocumentStatus, Section
 
 
 async def create_test_document_with_conversation(db: AsyncSession, settings):
@@ -19,7 +19,8 @@ async def create_test_document_with_conversation(db: AsyncSession, settings):
         page_count=5,
         status=DocumentStatus.READY,
         file_path=str(settings.upload_dir / "test.pdf"),
-        content_hash="abc123",
+        # Unique per document: content_hash carries a unique index.
+        content_hash=uuid.uuid4().hex,
         chunking_strategy="flat",
     )
     db.add(document)

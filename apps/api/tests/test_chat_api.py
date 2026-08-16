@@ -2,24 +2,23 @@
 
 import asyncio
 import json
+import uuid
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.chat.pipeline import DoneEvent, SourcesEvent, TokenEvent
 from app.db.models import Chunk, Conversation, Document, DocumentStatus, Message, Section
-from app.ingestion.sections import SectionSpec
-from app.ingestion.chunking import ChunkSpec
 
 
 async def create_ready_document(
     db: AsyncSession, settings
 ) -> tuple[Document, list[Chunk]]:
     """Create a READY document with chunks and sections for testing."""
-    import uuid
-
     document = Document(
         id=uuid.uuid4(),
         filename="test.pdf",
@@ -27,7 +26,8 @@ async def create_ready_document(
         page_count=10,
         status=DocumentStatus.READY,
         file_path=str(settings.upload_dir / "test.pdf"),
-        content_hash="abc123",
+        # Unique per document: content_hash carries a unique index.
+        content_hash=uuid.uuid4().hex,
         chunking_strategy="flat",
     )
     db.add(document)
@@ -155,13 +155,12 @@ async def test_chat_sse_message_id_valid(
     assert len(done_events) == 1
 
     message_id = done_events[0]["data"]["message_id"]
-    messages = await app_session.scalars(
-        select(Message).where(Message.id == message_id)
+    result = await app_session.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation.id)
+        .order_by(Message.order_index)
     )
-    message = await app_session.execute(
-        select(Message).where(Message.conversation_id == conversation.id)
-    )
-    persisted = message.scalars().all()
+    persisted = result.scalars().all()
 
     assert len(persisted) == 2
     assert str(persisted[-1].id) == message_id
@@ -194,6 +193,7 @@ async def test_chat_sse_ungrounded_persists(
     messages = await app_session.scalars(
         select(Message)
         .where(Message.conversation_id == conversation.id)
+        .options(selectinload(Message.sources))
         .order_by(Message.order_index)
     )
     all_messages = list(messages)
@@ -216,10 +216,9 @@ async def test_chat_sse_error_event(
     app_session.add(conversation)
     await app_session.commit()
 
-    from app.chat.pipeline import answer
-
     async def mock_answer(*args, **kwargs):
-        yield Exception("Test error")
+        yield TokenEvent(text="partial ")
+        raise RuntimeError("Test error")
 
     monkeypatch.setattr("app.api.routes.conversations.answer", mock_answer)
 
@@ -230,7 +229,40 @@ async def test_chat_sse_error_event(
 
     assert response.status_code == 200
     content = response.content.decode("utf-8")
-    assert "error" in content
+    assert "event: error" in content
+    assert "Test error" in content
+
+
+@pytest.mark.asyncio
+async def test_chat_sse_persist_failure_ends_stream_cleanly(
+    client: AsyncClient, app_session: AsyncSession, fake_llm, settings, monkeypatch
+):
+    """A failed save reports an error event instead of aborting the response body."""
+    document, chunks = await create_ready_document(app_session, settings)
+    conversation = Conversation(
+        id=uuid4(), document_id=document.id, title="Test"
+    )
+    app_session.add(conversation)
+    await app_session.commit()
+
+    async def failing_persist(*args, **kwargs):
+        raise RuntimeError("database is on fire")
+
+    monkeypatch.setattr(
+        "app.api.routes.conversations.persist_assistant_message", failing_persist
+    )
+
+    response = await client.post(
+        f"/conversations/{conversation.id}/messages",
+        json={"content": "What is in this document?"},
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    # Tokens still streamed, then a clean error frame instead of a truncated body.
+    assert "event: token" in content
+    assert "event: error" in content
+    assert "event: done" not in content
 
 
 @pytest.mark.asyncio
@@ -245,11 +277,11 @@ async def test_chat_sse_heartbeat(
     app_session.add(conversation)
     await app_session.commit()
 
-    monkeypatch.setattr("app.config.Settings.chat_heartbeat_seconds", 0.05)
+    # The route reads this off the injected Settings instance, not the class —
+    # pydantic fields are not class attributes, so patch the instance.
+    monkeypatch.setattr(settings, "chat_heartbeat_seconds", 0.05)
 
     async def slow_answer(*args, **kwargs):
-        from app.chat.pipeline import SourcesEvent, TokenEvent, DoneEvent
-
         yield SourcesEvent(results=[], pages=[])
         await asyncio.sleep(0.1)
         yield TokenEvent(text="Hello ")
@@ -281,9 +313,10 @@ async def test_chat_document_not_ready(
         title="Test Document",
         status=DocumentStatus.PENDING,
         file_path="/tmp/test.pdf",
-        content_hash="abc123",
+        content_hash=uuid.uuid4().hex,
     )
     app_session.add(document)
+    await app_session.flush()
 
     conversation = Conversation(id=uuid4(), document_id=document.id, title="Test")
     app_session.add(conversation)

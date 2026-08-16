@@ -3,10 +3,9 @@
 import uuid
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Document, DocumentStatus, Chunk, Section
+from app.db.models import Chunk, Document, DocumentStatus, Section
 
 
 @pytest.mark.asyncio
@@ -67,7 +66,6 @@ async def test_search_reranker_degrade_applies_distance_filter(
 ) -> None:
     """When re-ranker fails, distance filter applies and filters far chunks."""
     from app.retrieval.pipeline import search
-    from app.retrieval.rerank import Reranker
 
     doc = Document(
         id=uuid.uuid4(),
@@ -76,7 +74,7 @@ async def test_search_reranker_degrade_applies_distance_filter(
         file_path="/tmp/test.pdf",
         status=DocumentStatus.READY,
         page_count=1,
-        content_hash="0" * 64,
+        content_hash=uuid.uuid4().hex,
     )
     app_session.add(doc)
     await app_session.flush()
