@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Book Chat Request Path</title>
+<style>
+  :root {
+    --bg: #f1f3f1;
+    --surface: #ffffff;
+    --surface-2: #e7ebe8;
+    --ink: #191d1b;
+    --ink-2: #4a5450;
+    --muted: #737f7a;
+    --line: #cfd6d2;
+    --accent: #0f6e5c;
+    --accent-soft: #d8ebe5;
+    --warn: #9a5a12;
+    --warn-soft: #f2e5d2;
+    --stop: #963434;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101413;
+      --surface: #181d1b;
+      --surface-2: #212825;
+      --ink: #e6ebe8;
+      --ink-2: #b3bfba;
+      --muted: #8b9995;
+      --line: #2f3835;
+      --accent: #4fd1b0;
+      --accent-soft: #14332c;
+      --warn: #e0a05a;
+      --warn-soft: #33281a;
+      --stop: #e58585;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101413;
+    --surface: #181d1b;
+    --surface-2: #212825;
+    --ink: #e6ebe8;
+    --ink-2: #b3bfba;
+    --muted: #8b9995;
+    --line: #2f3835;
+    --accent: #4fd1b0;
+    --accent-soft: #14332c;
+    --warn: #e0a05a;
+    --warn-soft: #33281a;
+    --stop: #e58585;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+  }
+
+  header.page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 56px 0 0;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 32px;
+  }
+
+  .eyebrow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  h1 {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .deck {
+    max-width: 62ch;
+    color: var(--ink-2);
+    margin: 0;
+  }
+
+  section { display: flex; flex-direction: column; gap: 20px; }
+
+  h2 {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  p { max-width: 68ch; margin: 0; color: var(--ink-2); }
+  p strong { color: var(--ink); font-weight: 600; }
+
+  figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-x: auto;
+  }
+
+  figure svg {
+    display: block;
+    min-width: 860px;
+    width: 100%;
+    height: auto;
+    color: var(--ink);
+  }
+
+  figcaption {
+    font-size: 13.5px;
+    color: var(--muted);
+    max-width: 76ch;
+    line-height: 1.5;
+  }
+
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+  }
+
+  code {
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { display: inline-block; width: 26px; height: 0; border-top-width: 2px; border-top-style: solid; }
+  .swatch.solid { border-top-color: var(--ink); }
+  .swatch.ret { border-top-color: var(--ink); border-top-style: dashed; }
+  .swatch.sse { border-top-color: var(--accent); }
+  .swatch.deg { border-top-color: var(--warn); border-top-style: dashed; }
+
+  table {
+    border-collapse: collapse;
+    font-size: 14px;
+    width: 100%;
+    max-width: 720px;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 14px 9px 0;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  td.k { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); white-space: nowrap; }
+  td.v { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--accent); white-space: nowrap; }
+  td.n { color: var(--ink-2); }
+
+  ul { margin: 0; padding-left: 20px; max-width: 68ch; color: var(--ink-2); }
+  li { margin-bottom: 6px; }
+  li::marker { color: var(--muted); }
+
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+
+  .note {
+    border-left: 2px solid var(--warn);
+    background: var(--warn-soft);
+    padding: 12px 16px;
+    border-radius: 0 3px 3px 0;
+    max-width: 72ch;
+  }
+  .note p { color: var(--ink); font-size: 14.5px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="page">
+    <p class="eyebrow">ai-book-chat · runtime</p>
+    <h1>Book Chat Request Path</h1>
+    <p class="deck">One question, from the POST that carries it to the row that stores the answer — every hop, every guard, and every place the pipeline degrades instead of failing.</p>
+  </header>
+
+  <section>
+    <h2>The request, end to end</h2>
+
+    <figure>
+      <svg viewBox="0 0 1060 910" role="img" aria-label="Sequence diagram of a chat request across browser, API route, chat pipeline, LLM providers, and Postgres, from POST through rewrite, retrieval, re-rank, guard, generation, and persistence.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="ah-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/>
+          </marker>
+          <marker id="ah-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--warn)"/>
+          </marker>
+        </defs>
+
+        <g font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+
+          <!-- participants -->
+          <g>
+            <rect x="25" y="14" width="150" height="32" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1"/>
+            <text x="100" y="34" text-anchor="middle" font-size="12.5">Browser</text>
+
+            <rect x="255" y="14" width="150" height="32" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1"/>
+            <text x="330" y="34" text-anchor="middle" font-size="12.5">API route</text>
+
+            <rect x="495" y="14" width="150" height="32" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1"/>
+            <text x="570" y="34" text-anchor="middle" font-size="12.5">chat pipeline</text>
+
+            <rect x="735" y="14" width="150" height="32" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1"/>
+            <text x="810" y="34" text-anchor="middle" font-size="12.5">LLM provider</text>
+
+            <rect x="925" y="14" width="115" height="32" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1"/>
+            <text x="982" y="34" text-anchor="middle" font-size="12.5">Postgres</text>
+          </g>
+
+          <!-- lifelines -->
+          <g stroke="currentColor" stroke-width="1" stroke-dasharray="3 5" opacity="0.45">
+            <line x1="100" y1="46" x2="100" y2="880"/>
+            <line x1="330" y1="46" x2="330" y2="880"/>
+            <line x1="570" y1="46" x2="570" y2="880"/>
+            <line x1="810" y1="46" x2="810" y2="880"/>
+            <line x1="982" y1="46" x2="982" y2="880"/>
+          </g>
+
+          <!-- 1 POST -->
+          <text x="215" y="84" text-anchor="middle">POST /conversations/{id}/messages</text>
+          <line x1="100" y1="94" x2="330" y2="94" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- 2 guards -->
+          <text x="656" y="126" text-anchor="middle">SELECT conversation · document.status</text>
+          <line x1="330" y1="136" x2="982" y2="136" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="656" y="156" text-anchor="middle" fill="var(--muted)">404 if missing · 409 unless READY</text>
+
+          <!-- 3 persist user -->
+          <text x="656" y="184" text-anchor="middle">INSERT user message · derive title · COMMIT</text>
+          <line x1="330" y1="194" x2="982" y2="194" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- 4 stream opens -->
+          <text x="215" y="224" text-anchor="middle" fill="var(--accent)">200 · text/event-stream</text>
+          <line x1="330" y1="234" x2="100" y2="234" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah-a)"/>
+
+          <!-- 5 producer -->
+          <text x="450" y="264" text-anchor="middle">producer task · own DB session</text>
+          <line x1="330" y1="274" x2="570" y2="274" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- 6 rewrite -->
+          <text x="690" y="304" text-anchor="middle">rewrite · last 6 turns as context</text>
+          <line x1="570" y1="314" x2="810" y2="314" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="690" y="338" text-anchor="middle" fill="var(--warn)">standalone question · on failure keep original</text>
+          <line x1="810" y1="348" x2="570" y2="348" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah-w)"/>
+
+          <!-- 7 embed -->
+          <text x="690" y="378" text-anchor="middle">embed(query) → 1536-dim vector</text>
+          <line x1="570" y1="388" x2="810" y2="388" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- 8 vector search -->
+          <text x="776" y="418" text-anchor="middle">cosine KNN in this document · top_k 30 · ef_search 64</text>
+          <line x1="570" y1="428" x2="982" y2="428" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- 9 rerank -->
+          <text x="690" y="458" text-anchor="middle">score each candidate 0–10</text>
+          <line x1="570" y1="468" x2="810" y2="468" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="690" y="492" text-anchor="middle" fill="var(--warn)">rerank dead → fall back to distance ≤ 0.75</text>
+          <line x1="810" y1="502" x2="570" y2="502" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah-w)"/>
+
+          <!-- 10 guard self loop -->
+          <path d="M 570 524 H 660 V 556 H 578" fill="none" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="672" y="528" text-anchor="start">drop score &lt; 5 · sort desc · cut to top 8</text>
+          <text x="672" y="548" text-anchor="start" fill="var(--muted)">nothing left → grounded = false</text>
+
+          <!-- 11 sources event -->
+          <text x="335" y="586" text-anchor="middle" fill="var(--accent)">event: sources · chunk ids, pages, scores, snippets</text>
+          <line x1="570" y1="596" x2="100" y2="596" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#ah-a)"/>
+
+          <!-- 12 generate -->
+          <text x="690" y="626" text-anchor="middle">stream answer · chunks + history as context</text>
+          <line x1="570" y1="636" x2="810" y2="636" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- 13 token events -->
+          <text x="455" y="666" text-anchor="middle" fill="var(--accent)">event: token × N · 60 ms client buffer · 15 s ping if idle</text>
+          <line x1="810" y1="676" x2="100" y2="676" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah-a)"/>
+
+          <!-- 14 done event internal -->
+          <text x="450" y="706" text-anchor="middle">DoneEvent · grounded, truncated</text>
+          <line x1="570" y1="716" x2="330" y2="716" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- 15 persist assistant -->
+          <text x="656" y="746" text-anchor="middle">INSERT assistant message + message_sources · COMMIT</text>
+          <line x1="330" y1="756" x2="982" y2="756" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+
+          <!-- 16 done to client -->
+          <text x="215" y="786" text-anchor="middle" fill="var(--accent)">event: done · message_id, grounded, truncated</text>
+          <line x1="330" y1="796" x2="100" y2="796" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#ah-a)"/>
+
+          <!-- 17 refetch -->
+          <path d="M 100 820 H 190 V 852 H 108" fill="none" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="202" y="824" text-anchor="start">invalidate ["messages", id]</text>
+          <text x="202" y="844" text-anchor="start" fill="var(--muted)">refetch the persisted list · live text drops</text>
+        </g>
+      </svg>
+
+      <div class="legend">
+        <span><i class="swatch solid"></i> call</span>
+        <span><i class="swatch sse"></i> SSE frame to the client</span>
+        <span><i class="swatch deg"></i> degrade path — never raises</span>
+      </div>
+
+      <figcaption>The user message is committed before the stream opens, so a dropped connection never loses the question. Everything after that runs on a second DB session inside a producer task, because the request-scoped session is torn down the moment the response headers go out.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Where "I couldn't find that" comes from</h2>
+
+    <figure>
+      <svg viewBox="0 0 1020 330" role="img" aria-label="Decision diagram of the grounding guard: three failure exits — no chunks, no chunk scoring five or higher, and re-ranker degraded with nothing inside the distance threshold — all lead to a refusal, while the passing path cuts to the top eight chunks and generates.">
+        <defs>
+          <marker id="gh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+          <marker id="gh-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--stop)"/>
+          </marker>
+          <marker id="gh-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/>
+          </marker>
+        </defs>
+
+        <g font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+
+          <!-- chain -->
+          <rect x="20" y="30" width="140" height="52" rx="3" fill="var(--surface-2)" stroke="currentColor"/>
+          <text x="90" y="53" text-anchor="middle">vector search</text>
+          <text x="90" y="70" text-anchor="middle" fill="var(--muted)">top_k = 30</text>
+
+          <line x1="160" y1="56" x2="210" y2="56" stroke="currentColor" stroke-width="1.6" marker-end="url(#gh)"/>
+
+          <rect x="210" y="30" width="150" height="52" rx="3" fill="none" stroke="currentColor"/>
+          <text x="285" y="53" text-anchor="middle">any chunks?</text>
+          <text x="285" y="70" text-anchor="middle" fill="var(--muted)">document embedded</text>
+
+          <line x1="360" y1="56" x2="410" y2="56" stroke="currentColor" stroke-width="1.6" marker-end="url(#gh)"/>
+          <text x="385" y="46" text-anchor="middle" fill="var(--muted)">yes</text>
+
+          <rect x="410" y="30" width="150" height="52" rx="3" fill="none" stroke="currentColor"/>
+          <text x="485" y="53" text-anchor="middle">re-ranker replied?</text>
+          <text x="485" y="70" text-anchor="middle" fill="var(--muted)">6 tries, jittered</text>
+
+          <!-- yes: score filter -->
+          <path d="M 560 48 H 592 V 38 H 612" stroke="currentColor" stroke-width="1.6" fill="none" marker-end="url(#gh)"/>
+          <text x="596" y="24" text-anchor="middle" fill="var(--muted)">yes</text>
+          <rect x="620" y="12" width="170" height="52" rx="3" fill="none" stroke="currentColor"/>
+          <text x="705" y="35" text-anchor="middle">keep score ≥ 5</text>
+          <text x="705" y="52" text-anchor="middle" fill="var(--muted)">sort descending</text>
+
+          <!-- no: distance filter -->
+          <path d="M 560 64 H 592 V 110 H 612" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="6 4" fill="none" marker-end="url(#gh)"/>
+          <text x="580" y="100" text-anchor="middle" fill="var(--warn)">no</text>
+          <rect x="620" y="84" width="170" height="52" rx="3" fill="none" stroke="var(--warn)"/>
+          <text x="705" y="107" text-anchor="middle" fill="var(--warn)">keep distance ≤ 0.75</text>
+          <text x="705" y="124" text-anchor="middle" fill="var(--muted)">no scores to sort by</text>
+
+          <!-- merge into success -->
+          <path d="M 790 38 H 820 V 74" stroke="var(--accent)" stroke-width="1.6" fill="none"/>
+          <path d="M 790 110 H 820 V 74" stroke="var(--accent)" stroke-width="1.6" fill="none"/>
+          <path d="M 820 74 H 844" stroke="var(--accent)" stroke-width="1.6" fill="none" marker-end="url(#gh-a)"/>
+          <rect x="850" y="44" width="150" height="60" rx="3" fill="var(--accent-soft)" stroke="var(--accent)"/>
+          <text x="925" y="70" text-anchor="middle" fill="var(--accent)">cut to top 8</text>
+          <text x="925" y="88" text-anchor="middle" fill="var(--accent)">generate</text>
+
+          <!-- refusal exits -->
+          <path d="M 285 82 V 244" stroke="var(--stop)" stroke-width="1.6" fill="none" marker-end="url(#gh-s)"/>
+          <text x="297" y="112" text-anchor="start" fill="var(--stop)">none</text>
+          <text x="297" y="130" text-anchor="start" fill="var(--muted)">no_chunks</text>
+
+          <path d="M 790 52 H 806 V 244" stroke="var(--stop)" stroke-width="1.6" fill="none" marker-end="url(#gh-s)"/>
+          <text x="818" y="152" text-anchor="start" fill="var(--stop)">nothing ≥ 5</text>
+          <text x="818" y="170" text-anchor="start" fill="var(--muted)">no_relevant_chunks</text>
+
+          <path d="M 705 136 V 244" stroke="var(--stop)" stroke-width="1.6" fill="none" marker-end="url(#gh-s)"/>
+          <text x="690" y="176" text-anchor="end" fill="var(--stop)">nothing near enough</text>
+          <text x="690" y="194" text-anchor="end" fill="var(--muted)">rerank_degraded_no_match</text>
+
+          <rect x="200" y="250" width="620" height="60" rx="3" fill="none" stroke="var(--stop)"/>
+          <text x="510" y="276" text-anchor="middle" fill="var(--stop)">grounded = false · the generation model is never called</text>
+          <text x="510" y="296" text-anchor="middle" fill="var(--muted)">one token frame: "I couldn't find that in this document." then done</text>
+        </g>
+      </svg>
+
+      <figcaption>Three separate exits produce the same refusal, each with its own reason code in the logs. The refusal is emitted as a normal <code>token</code> frame followed by <code>done</code>, so the client renders it through the same path as a real answer — and the generation model is never called.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>When the client walks away</h2>
+
+    <figure>
+      <svg viewBox="0 0 900 250" role="img" aria-label="Diagram of client disconnect handling: the cancelled generator enters a shielded scope, cancels and awaits the producer task, then persists the partial answer with truncated set to true before re-raising.">
+        <defs>
+          <marker id="dh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+
+          <rect x="20" y="30" width="160" height="48" rx="3" fill="var(--surface-2)" stroke="currentColor"/>
+          <text x="100" y="52" text-anchor="middle">client aborts</text>
+          <text x="100" y="69" text-anchor="middle" fill="var(--muted)">tab closed · abort()</text>
+
+          <line x1="180" y1="54" x2="240" y2="54" stroke="currentColor" stroke-width="1.6" marker-end="url(#dh)"/>
+
+          <rect x="240" y="14" width="620" height="150" rx="4" fill="none" stroke="var(--accent)" stroke-dasharray="5 4"/>
+          <text x="256" y="34" fill="var(--accent)" font-size="11.5">shielded cancel scope — cancellation cannot interrupt this</text>
+
+          <rect x="260" y="46" width="170" height="60" rx="3" fill="none" stroke="currentColor"/>
+          <text x="345" y="70" text-anchor="middle">cancel producer</text>
+          <text x="345" y="87" text-anchor="middle" fill="var(--muted)">and await it</text>
+
+          <line x1="430" y1="76" x2="480" y2="76" stroke="currentColor" stroke-width="1.6" marker-end="url(#dh)"/>
+
+          <rect x="480" y="46" width="190" height="60" rx="3" fill="none" stroke="currentColor"/>
+          <text x="575" y="70" text-anchor="middle">persist partial answer</text>
+          <text x="575" y="87" text-anchor="middle" fill="var(--muted)">truncated = true</text>
+
+          <line x1="670" y1="76" x2="720" y2="76" stroke="currentColor" stroke-width="1.6" marker-end="url(#dh)"/>
+
+          <rect x="720" y="46" width="120" height="60" rx="3" fill="none" stroke="currentColor"/>
+          <text x="780" y="70" text-anchor="middle">re-raise</text>
+          <text x="780" y="87" text-anchor="middle" fill="var(--muted)">session closes</text>
+
+          <text x="260" y="132" fill="var(--muted)" font-size="11.5">the await is not optional: one AsyncSession cannot be driven by two coroutines,</text>
+          <text x="260" y="150" fill="var(--muted)" font-size="11.5">so the producer must be off the session before anything else touches it</text>
+
+          <text x="20" y="200" fill="var(--muted)" font-size="11.5">already persisted when the abort lands? nothing is written twice — a flag guards the second save.</text>
+          <text x="20" y="222" fill="var(--muted)" font-size="11.5">save fails at done instead? rollback, emit event: error, stop — the streamed body stays intact.</text>
+        </g>
+      </svg>
+
+      <figcaption>A half-streamed answer is still worth keeping, so the disconnect path saves it flagged <code>truncated</code> rather than discarding it. The same shielded teardown runs in <code>finally</code> on every exit, not just cancellation.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Knobs</h2>
+    <div class="grid2">
+      <table>
+        <thead>
+          <tr><th>Setting</th><th>Default</th><th>Governs</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="k">retrieval_top_k</td><td class="v">30</td><td class="n">candidates pulled from pgvector</td></tr>
+          <tr><td class="k">rerank_min_score</td><td class="v">5</td><td class="n">relevance floor, 0–10 scale</td></tr>
+          <tr><td class="k">rerank_top_n</td><td class="v">8</td><td class="n">chunks handed to the model</td></tr>
+          <tr><td class="k">retrieval_max_distance</td><td class="v">0.75</td><td class="n">cosine cutoff when re-rank dies</td></tr>
+          <tr><td class="k">chat_history_turns</td><td class="v">6</td><td class="n">turns fed to rewrite and generate</td></tr>
+          <tr><td class="k">chat_max_tokens</td><td class="v">2048</td><td class="n">answer ceiling — hitting it sets truncated</td></tr>
+          <tr><td class="k">chat_heartbeat_seconds</td><td class="v">15</td><td class="n">idle ping that keeps proxies from closing</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        <p><strong>Every LLM hop has a floor.</strong> Missing key → fake adapter. Rewrite fails or returns something oversized → the original question goes through. Re-rank fails → raw cosine distance decides. Only the query embedding is load-bearing: without it there is no search, and the request errors.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
