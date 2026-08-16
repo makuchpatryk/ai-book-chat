@@ -89,3 +89,19 @@ def enqueued(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     monkeypatch.setattr("app.services.documents.process_document", StubTask)
     return document_ids
+
+
+@pytest.fixture
+def fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use FakeGenerator and FakeRewriter in chat routes."""
+    from app.chat.generate import FakeGenerator
+    from app.chat.rewrite import FakeRewriter
+
+    def fake_build_generator(settings):
+        return FakeGenerator()
+
+    def fake_build_rewriter(settings):
+        return FakeRewriter()
+
+    monkeypatch.setattr("app.api.routes.conversations.build_generator", fake_build_generator)
+    monkeypatch.setattr("app.api.routes.conversations.build_rewriter", fake_build_rewriter)

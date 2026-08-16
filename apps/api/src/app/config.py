@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     chat_history_turns: int = 6
     chat_heartbeat_seconds: float = 15.0
 
+    # Retry and recovery
+    stuck_after_minutes: int = 30
+    retrieval_max_distance: float = 0.75
+
     @property
     def sync_database_url(self) -> str:
         """Same database, psycopg driver — used by Celery tasks and Alembic."""

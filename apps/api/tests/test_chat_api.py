@@ -1,0 +1,310 @@
+"""Integration tests for chat SSE endpoint."""
+
+import asyncio
+import json
+from uuid import uuid4
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import Chunk, Conversation, Document, DocumentStatus, Message, Section
+from app.ingestion.sections import SectionSpec
+from app.ingestion.chunking import ChunkSpec
+
+
+async def create_ready_document(
+    db: AsyncSession, settings
+) -> tuple[Document, list[Chunk]]:
+    """Create a READY document with chunks and sections for testing."""
+    import uuid
+
+    document = Document(
+        id=uuid.uuid4(),
+        filename="test.pdf",
+        title="Test Document",
+        page_count=10,
+        status=DocumentStatus.READY,
+        file_path=str(settings.upload_dir / "test.pdf"),
+        content_hash="abc123",
+        chunking_strategy="flat",
+    )
+    db.add(document)
+    await db.flush()
+
+    section = Section(
+        id=uuid.uuid4(),
+        document_id=document.id,
+        title="Introduction",
+        order_index=0,
+        start_page=1,
+        end_page=3,
+    )
+    db.add(section)
+    await db.flush()
+
+    chunks = []
+    for i in range(3):
+        chunk = Chunk(
+            id=uuid.uuid4(),
+            document_id=document.id,
+            section_id=section.id,
+            content=f"Sample text for chunk {i}. This discusses important concepts.",
+            page_start=1 + i,
+            page_end=1 + i,
+            token_count=100,
+            order_index=i,
+            embedding=[0.1] * 1536,
+        )
+        db.add(chunk)
+        chunks.append(chunk)
+
+    await db.commit()
+    return document, chunks
+
+
+def parse_sse(line: str) -> dict | None:
+    """Parse a single SSE event."""
+    if not line.strip():
+        return None
+    lines = line.split("\n")
+    result = {}
+    for line in lines:
+        if line.startswith("event: "):
+            result["event"] = line[7:].strip()
+        elif line.startswith("data: "):
+            data_str = line[6:].strip()
+            if data_str:
+                try:
+                    result["data"] = json.loads(data_str)
+                except json.JSONDecodeError:
+                    pass
+        elif line.startswith(": "):
+            result["comment"] = True
+    return result if result else None
+
+
+async def parse_sse_stream(content: bytes) -> list[dict]:
+    """Parse SSE stream into events."""
+    events = []
+    text = content.decode("utf-8")
+    blocks = text.split("\n\n")
+    for block in blocks:
+        if block.strip():
+            event = parse_sse(block)
+            if event:
+                events.append(event)
+    return events
+
+
+@pytest.mark.asyncio
+async def test_chat_sse_event_order(
+    client: AsyncClient, app_session: AsyncSession, fake_llm, settings
+):
+    """Test that SSE events arrive in correct order: sources, tokens, done."""
+    document, chunks = await create_ready_document(app_session, settings)
+    conversation = Conversation(
+        id=uuid4(), document_id=document.id, title="Test"
+    )
+    app_session.add(conversation)
+    await app_session.commit()
+
+    response = await client.post(
+        f"/conversations/{conversation.id}/messages",
+        json={"content": "What is in this document?"},
+    )
+
+    assert response.status_code == 200
+    events = await parse_sse_stream(response.content)
+
+    event_types = [e.get("event") for e in events if "event" in e]
+    assert "sources" in event_types
+    assert "token" in event_types
+    assert "done" in event_types
+
+    sources_idx = event_types.index("sources")
+    token_idx = event_types.index("token")
+    done_idx = event_types.index("done")
+
+    assert sources_idx < token_idx, "sources should come before tokens"
+    assert token_idx < done_idx, "tokens should come before done"
+
+
+@pytest.mark.asyncio
+async def test_chat_sse_message_id_valid(
+    client: AsyncClient, app_session: AsyncSession, fake_llm, settings
+):
+    """Test that done event contains a valid message_id that exists in DB."""
+    document, chunks = await create_ready_document(app_session, settings)
+    conversation = Conversation(
+        id=uuid4(), document_id=document.id, title="Test"
+    )
+    app_session.add(conversation)
+    await app_session.commit()
+
+    response = await client.post(
+        f"/conversations/{conversation.id}/messages",
+        json={"content": "What is in this document?"},
+    )
+
+    assert response.status_code == 200
+    events = await parse_sse_stream(response.content)
+
+    done_events = [e for e in events if e.get("event") == "done"]
+    assert len(done_events) == 1
+
+    message_id = done_events[0]["data"]["message_id"]
+    messages = await app_session.scalars(
+        select(Message).where(Message.id == message_id)
+    )
+    message = await app_session.execute(
+        select(Message).where(Message.conversation_id == conversation.id)
+    )
+    persisted = message.scalars().all()
+
+    assert len(persisted) == 2
+    assert str(persisted[-1].id) == message_id
+
+
+@pytest.mark.asyncio
+async def test_chat_sse_ungrounded_persists(
+    client: AsyncClient, app_session: AsyncSession, fake_llm, settings
+):
+    """Test that ungrounded (no matching chunks) answer is persisted."""
+    document, chunks = await create_ready_document(app_session, settings)
+    conversation = Conversation(
+        id=uuid4(), document_id=document.id, title="Test"
+    )
+    app_session.add(conversation)
+    await app_session.commit()
+
+    response = await client.post(
+        f"/conversations/{conversation.id}/messages",
+        json={"content": "Tell me about aliens"},
+    )
+
+    assert response.status_code == 200
+    events = await parse_sse_stream(response.content)
+
+    done_event = next((e for e in events if e.get("event") == "done"), None)
+    assert done_event is not None
+    assert done_event["data"]["grounded"] is False
+
+    messages = await app_session.scalars(
+        select(Message)
+        .where(Message.conversation_id == conversation.id)
+        .order_by(Message.order_index)
+    )
+    all_messages = list(messages)
+
+    assert len(all_messages) == 2
+    assistant_msg = all_messages[-1]
+    assert assistant_msg.grounded is False
+    assert len(assistant_msg.sources) == 0
+
+
+@pytest.mark.asyncio
+async def test_chat_sse_error_event(
+    client: AsyncClient, app_session: AsyncSession, settings, monkeypatch
+):
+    """Test that generator errors emit error event."""
+    document, chunks = await create_ready_document(app_session, settings)
+    conversation = Conversation(
+        id=uuid4(), document_id=document.id, title="Test"
+    )
+    app_session.add(conversation)
+    await app_session.commit()
+
+    from app.chat.pipeline import answer
+
+    async def mock_answer(*args, **kwargs):
+        yield Exception("Test error")
+
+    monkeypatch.setattr("app.api.routes.conversations.answer", mock_answer)
+
+    response = await client.post(
+        f"/conversations/{conversation.id}/messages",
+        json={"content": "What is in this document?"},
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "error" in content
+
+
+@pytest.mark.asyncio
+async def test_chat_sse_heartbeat(
+    client: AsyncClient, app_session: AsyncSession, fake_llm, settings, monkeypatch
+):
+    """Test that heartbeat frames appear with slow generation."""
+    document, chunks = await create_ready_document(app_session, settings)
+    conversation = Conversation(
+        id=uuid4(), document_id=document.id, title="Test"
+    )
+    app_session.add(conversation)
+    await app_session.commit()
+
+    monkeypatch.setattr("app.config.Settings.chat_heartbeat_seconds", 0.05)
+
+    async def slow_answer(*args, **kwargs):
+        from app.chat.pipeline import SourcesEvent, TokenEvent, DoneEvent
+
+        yield SourcesEvent(results=[], pages=[])
+        await asyncio.sleep(0.1)
+        yield TokenEvent(text="Hello ")
+        await asyncio.sleep(0.1)
+        yield TokenEvent(text="world")
+        yield DoneEvent(grounded=False, truncated=False)
+
+    monkeypatch.setattr("app.api.routes.conversations.answer", slow_answer)
+
+    response = await client.post(
+        f"/conversations/{conversation.id}/messages",
+        json={"content": "What is in this document?"},
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    ping_count = content.count(": ping")
+    assert ping_count >= 1, "Should have at least one heartbeat ping"
+
+
+@pytest.mark.asyncio
+async def test_chat_document_not_ready(
+    client: AsyncClient, app_session: AsyncSession
+):
+    """Test that chat on non-READY document returns 409."""
+    document = Document(
+        id=uuid4(),
+        filename="test.pdf",
+        title="Test Document",
+        status=DocumentStatus.PENDING,
+        file_path="/tmp/test.pdf",
+        content_hash="abc123",
+    )
+    app_session.add(document)
+
+    conversation = Conversation(id=uuid4(), document_id=document.id, title="Test")
+    app_session.add(conversation)
+    await app_session.commit()
+
+    response = await client.post(
+        f"/conversations/{conversation.id}/messages",
+        json={"content": "What is in this document?"},
+    )
+
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_chat_unknown_conversation(
+    client: AsyncClient, fake_llm
+):
+    """Test that chat on unknown conversation returns 404."""
+    response = await client.post(
+        f"/conversations/{uuid4()}/messages",
+        json={"content": "What is in this document?"},
+    )
+
+    assert response.status_code == 404

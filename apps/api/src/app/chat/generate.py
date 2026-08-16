@@ -29,6 +29,7 @@ class TextDelta:
 class GenerationDone:
     input_tokens: int | None
     output_tokens: int | None
+    stop_reason: str | None = None
 
 
 StreamEvent = TextDelta | GenerationDone
@@ -90,6 +91,7 @@ class AnthropicGenerator:
         yield GenerationDone(
             input_tokens=final.usage.input_tokens,
             output_tokens=final.usage.output_tokens,
+            stop_reason=final.stop_reason,
         )
 
 

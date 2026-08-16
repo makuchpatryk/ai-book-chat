@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 import factories
 from app.config import Settings, get_settings
+from app.db.models import Document, DocumentStatus
 from app.ingestion.embeddings import FakeEmbedder
 from app.ingestion.pipeline import process_document
 
@@ -129,3 +130,75 @@ async def test_detail_404s_for_an_unknown_id(client: AsyncClient, document_id: s
     response = await client.get(f"/documents/{document_id}")
 
     assert response.status_code == 404
+
+
+async def test_delete_removes_document_and_file(
+    client: AsyncClient, sync_session: Session, enqueued: list[str], tmp_path: Path
+) -> None:
+    path = factories.book_pdf(tmp_path / "book.pdf")
+    upload = await client.post("/documents", files=_upload(path))
+    document_id = UUID(upload.json()["id"])
+    process_document(sync_session, document_id, FakeEmbedder())
+
+    file_path = sync_session.get(Document, document_id).file_path
+
+    response = await client.delete(f"/documents/{document_id}")
+
+    assert response.status_code == 204
+    assert not Path(file_path).exists()
+
+
+async def test_delete_404s_for_unknown_id(
+    client: AsyncClient,
+) -> None:
+    response = await client.delete(f"/documents/{uuid4()}")
+
+    assert response.status_code == 404
+
+
+async def test_retry_from_failed_resets_status(
+    client: AsyncClient, sync_session: Session, enqueued: list[str], tmp_path: Path
+) -> None:
+    path = factories.book_pdf(tmp_path / "book.pdf")
+    upload = await client.post("/documents", files=_upload(path))
+    document_id = UUID(upload.json()["id"])
+
+    doc = sync_session.get(Document, document_id)
+    doc.status = DocumentStatus.FAILED
+    doc.error_message = "Test error"
+    sync_session.commit()
+
+    response = await client.post(f"/documents/{document_id}/retry")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "PENDING"
+    assert body["error_message"] is None
+    assert enqueued[-1] == str(document_id)
+
+
+async def test_retry_from_ready_returns_409(
+    client: AsyncClient, sync_session: Session, enqueued: list[str], tmp_path: Path
+) -> None:
+    path = factories.book_pdf(tmp_path / "book.pdf")
+    upload = await client.post("/documents", files=_upload(path))
+    document_id = UUID(upload.json()["id"])
+    process_document(sync_session, document_id, FakeEmbedder())
+
+    response = await client.post(f"/documents/{document_id}/retry")
+
+    assert response.status_code == 409
+    assert "already processed" in response.json()["detail"]
+
+
+async def test_retry_from_fresh_pending_returns_409(
+    client: AsyncClient, sync_session: Session, enqueued: list[str], tmp_path: Path
+) -> None:
+    path = factories.book_pdf(tmp_path / "book.pdf")
+    upload = await client.post("/documents", files=_upload(path))
+    document_id = UUID(upload.json()["id"])
+
+    response = await client.post(f"/documents/{document_id}/retry")
+
+    assert response.status_code == 409
+    assert "still processing" in response.json()["detail"]

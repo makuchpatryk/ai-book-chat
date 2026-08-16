@@ -79,11 +79,12 @@ async def search(
 
     # 4. Guard and cut
     results_with_scores: list[tuple[Candidate, int | None]] = []
-    for i, candidate in enumerate(candidates):
-        score = scores[i] if scores else None
-        results_with_scores.append((candidate, score))
 
     if scores:
+        for i, candidate in enumerate(candidates):
+            score = scores[i]
+            results_with_scores.append((candidate, score))
+
         # Filter by min_score threshold
         min_score = settings.rerank_min_score
         results_with_scores = [
@@ -105,6 +106,24 @@ async def search(
                 grounded=False,
                 reranked=True,
                 reason="no_relevant_chunks",
+                candidate_count=len(candidates),
+            )
+    else:
+        # Re-ranker degraded: filter by distance instead
+        results_with_scores = [
+            (c, None) for c in candidates
+            if c.distance <= settings.retrieval_max_distance
+        ]
+        if not results_with_scores:
+            logger.info(
+                "rerank degrade guard fired",
+                extra={"document_id": str(document_id)},
+            )
+            return SearchOutcome(
+                results=[],
+                grounded=False,
+                reranked=False,
+                reason="rerank_degraded_no_match",
                 candidate_count=len(candidates),
             )
 

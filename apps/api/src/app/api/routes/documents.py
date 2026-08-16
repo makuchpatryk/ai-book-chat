@@ -45,3 +45,16 @@ async def get_document(document_id: UUID, db: DbSession) -> DocumentDetail:
         sections=[SectionRead.model_validate(section) for section in document.sections],
         chunk_count=chunk_count,
     )
+
+
+@router.post("/{document_id}/retry", response_model=DocumentRead, status_code=status.HTTP_200_OK)
+async def retry_document(document_id: UUID, db: DbSession, settings: AppSettings) -> Document:
+    document = await service.retry_document(db, document_id, settings)
+    return document
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(document_id: UUID, db: DbSession) -> None:
+    success = await service.delete_document(db, document_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")

@@ -51,6 +51,16 @@ class AnthropicRewriter:
             if not result or len(result) > 500:
                 logger.warning("rewrite produced empty or oversized result, using original")
                 return question
+            logger.info(
+                "rewrite usage",
+                extra={
+                    "phase": "rewrite",
+                    "provider": "anthropic",
+                    "model": self._model,
+                    "input_tokens": message.usage.input_tokens,
+                    "output_tokens": message.usage.output_tokens,
+                },
+            )
             return result
         except Exception as e:
             logger.warning(f"rewrite failed ({e}), using original question")
@@ -82,6 +92,21 @@ class MistralRewriter:
             if not result or len(result) > 500:
                 logger.warning("rewrite produced empty or oversized result, using original")
                 return question
+            input_tokens = None
+            output_tokens = None
+            if hasattr(message, "usage"):
+                input_tokens = getattr(message.usage, "prompt_tokens", None)
+                output_tokens = getattr(message.usage, "completion_tokens", None)
+            logger.info(
+                "rewrite usage",
+                extra={
+                    "phase": "rewrite",
+                    "provider": "mistral",
+                    "model": self._model,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                },
+            )
             return result
         except Exception as e:
             logger.warning(f"rewrite failed ({e}), using original question")

@@ -7,16 +7,17 @@ the response returns as soon as the row exists.
 
 import hashlib
 import logging
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import Settings
-from app.db.models import Chunk, Document, DocumentStatus
+from app.db.models import Chunk, Document, DocumentStatus, Section
 from app.worker.tasks import process_document
 
 logger = logging.getLogger(__name__)
@@ -143,3 +144,72 @@ async def get_document_detail(
         select(func.count()).select_from(Chunk).where(Chunk.document_id == document_id)
     )
     return document, chunk_count or 0
+
+
+async def delete_document(session: AsyncSession, document_id: UUID) -> bool:
+    """Delete a document and cascade to chunks, sections, conversations, messages, and sources.
+
+    Returns whether a row was removed. Unlinks the PDF file after commit.
+    """
+    document = await session.scalar(select(Document).where(Document.id == document_id))
+    if document is None:
+        return False
+
+    file_path = document.file_path
+
+    stmt = delete(Document).where(Document.id == document_id)
+    await session.execute(stmt)
+    await session.commit()
+
+    try:
+        Path(file_path).unlink(missing_ok=True)
+    except Exception as e:
+        logger.warning(f"failed to unlink {file_path}: {e}")
+
+    return True
+
+
+async def retry_document(session: AsyncSession, document_id: UUID, settings: Settings) -> Document:
+    """Move a document back to PENDING and re-enqueue processing.
+
+    Raises HTTPException with appropriate status codes for ineligible states:
+    - READY: 409 "already processed"
+    - PENDING|PARSING|EMBEDDING and recent: 409 "still processing"
+    - PENDING|PARSING|EMBEDDING and stale: clears chunks/sections, resets to PENDING
+    - FAILED: resets to PENDING
+    - File missing: 409 "original file is gone"
+    """
+    document = await session.scalar(select(Document).where(Document.id == document_id))
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
+
+    if document.status == DocumentStatus.READY:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="document is already processed"
+        )
+
+    if document.status in (DocumentStatus.PENDING, DocumentStatus.PARSING, DocumentStatus.EMBEDDING):
+        age_minutes = (datetime.now(timezone.utc) - document.updated_at).total_seconds() / 60
+        if age_minutes < settings.stuck_after_minutes:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="document is still processing"
+            )
+
+    if not Path(document.file_path).exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="original file is missing; re-upload it",
+        )
+
+    await session.execute(delete(Chunk).where(Chunk.document_id == document_id))
+    await session.execute(delete(Section).where(Section.document_id == document_id))
+
+    document.status = DocumentStatus.PENDING
+    document.error_message = None
+    await session.commit()
+    await session.refresh(document)
+
+    process_document.delay(str(document.id))
+    logger.info("document retry enqueued", extra={"document_id": str(document.id)})
+
+    return document

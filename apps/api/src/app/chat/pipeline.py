@@ -37,7 +37,6 @@ class TokenEvent:
 class DoneEvent:
     """Streamed when generation completes."""
 
-    message_id: uuid.UUID
     grounded: bool
     truncated: bool
 
@@ -72,13 +71,13 @@ async def answer(
             return
 
         # Get recent turns for rewriting (exclude current user message, which hasn't been persisted yet)
-        history = await conv_service.recent_turns(
+        recent_history = await conv_service.recent_turns(
             db, conversation_id, limit=settings.chat_history_turns
         )
 
         # Step 1: Rewrite the question using history
         rewritten_question = await rewrite_question(
-            user_question, history, rewriter_impl, settings
+            user_question, recent_history, rewriter_impl, settings
         )
         if rewritten_question != user_question:
             logger.info(f"rewrite: {user_question!r} -> {rewritten_question!r}")
@@ -114,7 +113,7 @@ async def answer(
         # If not grounded, emit refusal and return
         if not grounded:
             yield TokenEvent(text="I couldn't find that in this document.")
-            yield DoneEvent(message_id=uuid.uuid4(), grounded=False, truncated=False)
+            yield DoneEvent(grounded=False, truncated=False)
             return
 
         # Step 4: Generate answer using retrieved chunks
@@ -124,9 +123,6 @@ async def answer(
         )
 
         # Build conversation history for context (last N turns)
-        recent_history = await conv_service.recent_turns(
-            db, conversation_id, limit=settings.chat_history_turns
-        )
         chat_messages = [
             ChatMessage(role=role, content=content)
             for role, content in recent_history
@@ -136,16 +132,28 @@ async def answer(
         # Generate with context
         system_prompt = f"{ANSWER_PROMPT}\n\nContext from the document:\n{chunk_text}"
         answer_text = ""
+        truncated = False
         async for event in generator.stream(system_prompt, chat_messages):
             if isinstance(event, TextDelta):
                 answer_text += event.text
                 yield TokenEvent(text=event.text)
             elif isinstance(event, GenerationDone):
-                pass  # Just consume it
+                truncated = event.stop_reason == "max_tokens"
+                logger.info(
+                    "generation usage",
+                    extra={
+                        "phase": "generate",
+                        "provider": settings.chat_provider,
+                        "model": settings.chat_model,
+                        "input_tokens": event.input_tokens,
+                        "output_tokens": event.output_tokens,
+                        "conversation_id": str(conversation_id),
+                        "document_id": str(conversation.document_id),
+                    },
+                )
 
         # Step 5: Return done event (persistence happens in the route)
-        message_id = uuid.uuid4()
-        yield DoneEvent(message_id=message_id, grounded=True, truncated=False)
+        yield DoneEvent(grounded=True, truncated=truncated)
 
     except Exception as e:
         logger.exception(f"answer generation failed: {e}")

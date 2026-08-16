@@ -123,7 +123,14 @@ def _persist(
     chunks: list[ChunkSpec],
     vectors: list[list[float]],
 ) -> None:
-    """Insert sections and chunks in one transaction, ids generated up front."""
+    """Insert sections and chunks in one transaction, ids generated up front.
+
+    Deletes any existing chunks/sections first, making the operation idempotent
+    for retries.
+    """
+    session.execute(delete(Chunk).where(Chunk.document_id == document.id))
+    session.execute(delete(Section).where(Section.document_id == document.id))
+
     section_ids = {section.order_index: uuid.uuid4() for section in sections}
 
     session.execute(

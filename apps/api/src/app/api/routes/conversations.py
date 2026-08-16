@@ -184,17 +184,44 @@ async def send_message(
         """Generate SSE events."""
         # Open own session for streaming (request-scoped session is torn down after response)
         async with AsyncSessionLocal() as stream_db:
-            try:
-                generator = build_generator(settings)
-                rewriter = build_rewriter(settings)
+            queue: asyncio.Queue = asyncio.Queue()
+            producer_task: asyncio.Task | None = None
 
-                # Run the chat pipeline
+            async def producer():
+                """Feed pipeline events into the queue."""
+                try:
+                    generator = build_generator(settings)
+                    rewriter = build_rewriter(settings)
+
+                    async for event in answer(
+                        stream_db, conversation_id, request.content, generator, rewriter, settings
+                    ):
+                        await queue.put(event)
+                except Exception as e:
+                    await queue.put(ErrorEvent(detail=f"generation failed: {str(e)}"))
+                finally:
+                    await queue.put(None)
+
+            try:
+                producer_task = asyncio.create_task(producer())
+
                 answer_text = ""
                 retrieved_chunks = []
+                grounded = False
+                truncated = False
 
-                async for event in answer(
-                    stream_db, conversation_id, request.content, generator, rewriter, settings
-                ):
+                while True:
+                    try:
+                        event = await asyncio.wait_for(
+                            queue.get(), timeout=settings.chat_heartbeat_seconds
+                        )
+                    except asyncio.TimeoutError:
+                        yield ": ping\n\n"
+                        continue
+
+                    if event is None:
+                        break
+
                     if isinstance(event, SourcesEvent):
                         payload = SourcesPayload(
                             results=[
@@ -219,14 +246,20 @@ async def send_message(
                         yield f"event: token\ndata: {payload.model_dump_json()}\n\n"
 
                     elif isinstance(event, DoneEvent):
-                        # Persist assistant message and sources
-                        await persist_assistant_message(
-                            stream_db, conversation_id, answer_text, retrieved_chunks, truncated=False
+                        grounded = event.grounded
+                        truncated = event.truncated
+                        persisted_message = await persist_assistant_message(
+                            stream_db,
+                            conversation_id,
+                            answer_text,
+                            retrieved_chunks,
+                            grounded=grounded,
+                            truncated=truncated,
                         )
                         payload = DonePayload(
-                            message_id=str(event.message_id),
-                            grounded=event.grounded,
-                            truncated=event.truncated,
+                            message_id=str(persisted_message.id),
+                            grounded=grounded,
+                            truncated=truncated,
                         )
                         yield f"event: done\ndata: {payload.model_dump_json()}\n\n"
 
@@ -236,11 +269,21 @@ async def send_message(
 
             except anyio.get_cancelled_exc_class() as e:
                 # Client disconnected — persist with truncated flag
+                if producer_task:
+                    producer_task.cancel()
                 with anyio.CancelScope(shield=True):
                     await persist_assistant_message(
-                        stream_db, conversation_id, answer_text, retrieved_chunks, truncated=True
+                        stream_db,
+                        conversation_id,
+                        answer_text,
+                        retrieved_chunks,
+                        grounded=grounded,
+                        truncated=True,
                     )
                 raise
+            finally:
+                if producer_task and not producer_task.done():
+                    producer_task.cancel()
 
     return StreamingResponse(
         event_generator(),
@@ -258,33 +301,34 @@ async def persist_assistant_message(
     conversation_id: UUID,
     answer_text: str,
     retrieved_chunks: list[dict],
+    grounded: bool,
     truncated: bool,
-) -> None:
-    """Persist assistant message and its sources to the database."""
-    try:
-        order_index = await conv_service.next_order_index(db, conversation_id)
-        assistant_message = Message(
-            conversation_id=conversation_id,
-            role=MessageRole.ASSISTANT,
-            content=answer_text,
-            grounded=len(retrieved_chunks) > 0,
-            truncated=truncated,
-            order_index=order_index,
+) -> Message:
+    """Persist assistant message and its sources to the database.
+
+    Returns the persisted Message row.
+    """
+    order_index = await conv_service.next_order_index(db, conversation_id)
+    assistant_message = Message(
+        conversation_id=conversation_id,
+        role=MessageRole.ASSISTANT,
+        content=answer_text,
+        grounded=grounded,
+        truncated=truncated,
+        order_index=order_index,
+    )
+    db.add(assistant_message)
+    await db.flush()
+
+    # Persist message sources
+    for rank, chunk_data in enumerate(retrieved_chunks):
+        source = MessageSource(
+            message_id=assistant_message.id,
+            chunk_id=UUID(chunk_data["chunk_id"]),
+            score=chunk_data.get("score"),
+            rank=rank,
         )
-        db.add(assistant_message)
-        await db.flush()
+        db.add(source)
 
-        # Persist message sources
-        for rank, chunk_data in enumerate(retrieved_chunks):
-            source = MessageSource(
-                message_id=assistant_message.id,
-                chunk_id=UUID(chunk_data["chunk_id"]),
-                score=chunk_data.get("score"),
-                rank=rank,
-            )
-            db.add(source)
-
-        await db.commit()
-    except Exception as e:
-        logger.exception(f"failed to persist assistant message: {e}")
-        await db.rollback()
+    await db.commit()
+    return assistant_message
