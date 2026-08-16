@@ -14,3 +14,7 @@ export async function createConversation(documentId: string): Promise<Conversati
 export async function getMessages(conversationId: string): Promise<Message[]> {
   return request<Message[]>(`/conversations/${conversationId}/messages`);
 }
+
+export async function deleteConversation(conversationId: string): Promise<void> {
+  return request<void>(`/conversations/${conversationId}`, { method: "DELETE" });
+}

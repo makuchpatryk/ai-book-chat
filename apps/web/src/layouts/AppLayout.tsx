@@ -6,6 +6,8 @@ import { ConversationList } from "@/features/chat/ConversationList";
 import { DocumentList } from "@/features/documents/DocumentList";
 import { useDocuments } from "@/features/documents/useDocuments";
 import { useConversations } from "@/features/chat/useConversations";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Toaster } from "@/components/ui/sonner";
 
 const FOOTER_NAV = [{ to: "/health", label: "Status", icon: HeartPulse }];
 
@@ -77,8 +79,12 @@ export function AppLayout() {
       </aside>
 
       <main className="flex-1 overflow-y-auto p-8">
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
+
+      <Toaster />
     </div>
   );
 }

@@ -14,3 +14,11 @@ export async function uploadDocument(file: File): Promise<Document> {
   formData.append("file", file);
   return upload<Document>("/documents", formData);
 }
+
+export async function deleteDocument(id: string): Promise<void> {
+  return request<void>(`/documents/${id}`, { method: "DELETE" });
+}
+
+export async function retryDocument(id: string): Promise<Document> {
+  return request<Document>(`/documents/${id}/retry`, { method: "POST" });
+}
