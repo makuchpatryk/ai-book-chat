@@ -1,5 +1,13 @@
 # Phase 4 — Chat Pipeline — Implementation Plan
 
+> **Partly superseded (2026-08-18).** The four-provider adapter switch this plan chose (option A in
+> "Generation provider") was collapsed to one path. `AnthropicGenerator`, `MistralGenerator`,
+> `OllamaGenerator` and their rewriter twins are deleted, as are `chat_provider` and the
+> `LLM_API_KEY` fallback; what remains is `LLMGenerator` / `LLMRewriter` over an OpenAI-compatible
+> endpoint (`LLM_BASE_URL`, `LLM_TOKEN`), with `FakeGenerator` / `FakeRewriter` when no token is
+> set. The `Generator` and `Rewriter` protocols, SSE contract, prompts, history capping and
+> persistence are unchanged. Current state: README "LLM configuration", PRD §8 Phase 8.
+
 ## Summary
 
 Phase 3 shipped a search endpoint that returns chunks; nothing turns them into an answer. Phase 4

@@ -12,9 +12,9 @@ Upload a book (PDF), ask questions in natural language, get grounded, analytical
 | Backend | FastAPI (Python) |
 | Storage | PostgreSQL 16 + pgvector (docker-compose) |
 | Background jobs | Celery + Redis (docker-compose) |
-| Embeddings | OpenAI `text-embedding-3-small` (1536d) |
-| LLM (default) | Hugging Face Inference Providers (`openai/gpt-oss-120b:cheapest`) |
-| LLM (configurable) | Anthropic Claude, Mistral, Ollama, or offline fallback (term overlap) |
+| Embeddings | Local Ollama `nomic-embed-text` (768d) |
+| LLM | Any OpenAI-compatible endpoint via `LLM_BASE_URL` (default Groq, `openai/gpt-oss-120b`) |
+| LLM fallback | Deterministic offline `Fake*` adapters when `LLM_TOKEN` is unset |
 | Retrieval | Top-k vector search + LLM re-rank (pluggable) |
 | Chunking | Chapter/section aware |
 | Citations | Page number only |
@@ -80,7 +80,7 @@ sections                       -- detected chapters
 
 chunks
   id, document_id, section_id, content, page_start, page_end,
-  token_count, order_index, embedding vector(1536)
+  token_count, order_index, embedding vector(768)
   INDEX: hnsw on embedding (cosine)
 
 conversations
@@ -108,7 +108,7 @@ upload → save file → PENDING
                                   → fallback: heading heuristics (font size, numbering)
                                   → fallback: flat page chunking
 3. Chunk within section bounds    ~600 tokens, 15% overlap, never crosses a section
-4. Batch embed                    OpenAI, 100 chunks per request
+4. Batch embed                    local Ollama, 100 chunks per request
 5. Bulk insert chunks + vectors
 6. READY
 ```
@@ -140,8 +140,8 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
 2. Vector search
    embed(standalone_q) → cosine top-30, scoped to document_id
 
-3. Re-rank (pluggable provider)
-   Hugging Face router | Anthropic Claude Haiku | Mistral | Ollama | FakeReranker
+3. Re-rank
+   LLMReranker (gpt-oss-120b) — or FakeReranker when LLM_TOKEN is unset
    → scores each candidate 0–10 for relevance
    → keep top-8, drop anything below threshold
 
@@ -149,7 +149,7 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
    no chunk above threshold → return "not in this document", skip generation
 
 5. Generate
-   chat model via the HF router (gpt-oss-120b), streamed
+   chat model via LLM_BASE_URL (gpt-oss-120b), streamed
    system: analytical answer, cite [p.N], never invent
    context: 8 chunks with page metadata + last 6 turns
 
@@ -157,14 +157,11 @@ app but would matter if this ever shipped closed-source. Extraction lives behind
    message + message_sources; log token usage
 ```
 
-**Re-ranker providers:**
-- **Hugging Face** (default): OpenAI-compatible router at `router.huggingface.co/v1`; asks for a
-  JSON schema, falls back to prompt-declared JSON when the routed provider rejects it, and tolerates
-  markdown fences and `<think>` blocks in the reply. 402 (out of credits) is not retried.
-- **Anthropic**: Claude Haiku via structured output, retries on failure
-- **Mistral**: Large model via Mistral API, JSON response parsing
-- **Ollama**: Local HTTP endpoint (no API key needed)
-- **FakeReranker**: Deterministic fallback (term-overlap scoring, no LLM call)
+**Re-rankers:**
+- **`LLMReranker`** (whenever `LLM_TOKEN` is set): asks for a JSON schema, falls back to
+  prompt-declared JSON when the model rejects `response_format`, and tolerates markdown fences and
+  `<think>` blocks in the reply. 402 (out of credits) is not retried.
+- **`FakeReranker`**: deterministic fallback (term-overlap scoring, no LLM call).
 
 ---
 
@@ -288,6 +285,28 @@ Upload + document list + status polling, then the chat UI with streaming and cit
   returning `AsyncIterator` (an async generator returns the iterator, not a coroutine) — typing
   only, no runtime change.
 
+**Phase 8 — Local embeddings and LLM provider cleanup** ✓ shipped
+- Embeddings moved off OpenAI onto a local Ollama `nomic-embed-text`, and `chunks.embedding`
+  narrowed from `Vector(1536)` to `Vector(768)` (migration 0004). Free, and the one stage a CPU-only
+  box handles comfortably: short inputs, no token generation. The width is not a config knob —
+  `build_embedder` refuses to start when `EMBEDDING_DIMENSIONS` disagrees with the column, and
+  `OllamaEmbedder` re-checks the model's real width on its first batch, because only the model knows
+  it. Another model is a migration plus a re-ingest.
+- The provider matrix Phase 7 built was collapsed to a single path. Only two backends were ever
+  configured in practice, so the `CHAT_PROVIDER`/`RERANK_PROVIDER`/`EMBEDDING_PROVIDER` switches and
+  the Anthropic, Mistral and Ollama chat/rewrite/rerank adapters were deleted along with
+  `OpenAIEmbedder` and `HFEmbedder` — ~1200 lines. `build_*` now reads: token set → real adapter,
+  else the `Fake*` one.
+- `HF_TOKEN`/`HF_BASE_URL` → `LLM_TOKEN`/`LLM_BASE_URL`; the redundant `LLM_API_KEY` fallback chain,
+  `hf_bill_to` (`X-HF-Bill-To`) and `anthropic_api_key` are gone. `app/llm/hf_client.py` →
+  `app/llm/client.py`, and `HF*` adapter classes → `LLM*`. Nothing in the transport was
+  HF-specific — it always spoke plain OpenAI chat-completions — so the rename cost no behaviour.
+- Model ids dropped their `:cheapest` suffix: that is HF-router routing syntax and means nothing on
+  Groq, where `LLM_BASE_URL` now points.
+- Dependencies dropped: `anthropic`, `huggingface-hub`. `openai` stays as the protocol client.
+- The adapter seam itself survives — swapping gateways is still a `.env` edit, just without a
+  per-vendor code path to maintain. Re-adding one is a small diff if a second backend earns its keep.
+
 ---
 
 ## 9. Risks
@@ -295,7 +314,7 @@ Upload + document list + status polling, then the chat UI with streaming and cit
 | Risk | Mitigation |
 |---|---|
 | Section detection fails (no outline, image-based headings) | Fall back to flat page chunking; log which strategy was used |
-| Re-ranking adds latency | Haiku with parallel batching; if slow, reduce candidates to top-15 |
+| Re-ranking adds latency | One batched call scores all 30; if slow, reduce candidates to top-15 |
 | Scanned PDF yields no text | Detect empty extraction, fail fast with a clear message (OCR out of scope) |
 | Follow-up questions lose context | Query rewriting step, evaluated manually against a test set |
-| Embedding cost on large books | One-time per document; batch requests; token usage logged |
+| Embedding throughput on large books | Local Ollama, so no per-token cost; batched 100 at a time, one-time per document |

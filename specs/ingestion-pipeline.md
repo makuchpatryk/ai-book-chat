@@ -1,5 +1,12 @@
 # Phase 2 — Ingestion Pipeline — Implementation Plan
 
+> **Partly superseded (2026-08-18).** Embeddings no longer go through OpenAI: `OpenAIEmbedder`,
+> `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL` and `OPENAI_API_KEY` are gone, replaced by a local Ollama
+> `nomic-embed-text`, and `chunks.embedding` narrowed from `Vector(1536)` to `Vector(768)`
+> (migration 0004). Read every "1536" and "text-embedding-3-small" below as historical. The
+> `Embedder` protocol, chunking, section detection and the Celery flow are unchanged. Current state:
+> README "LLM configuration", PRD §8 Phase 8.
+
 ## Summary
 
 Turn an uploaded PDF into embedded, page-attributed chunks: `POST /documents` stores the file and enqueues a Celery job that extracts text, detects chapter/section bounds, chunks within those bounds, embeds via OpenAI, and bulk-inserts vectors — driving the document through `PENDING → PARSING → EMBEDDING → READY` (or `FAILED` with a readable reason).

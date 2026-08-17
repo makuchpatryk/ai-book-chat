@@ -1,5 +1,12 @@
 # Phase 3 — Retrieval Pipeline — Implementation Plan
 
+> **Partly superseded (2026-08-18).** Re-ranking no longer runs on Claude: `ClaudeReranker` became
+> `HFReranker` in Phase 7 and is now `LLMReranker`, calling whatever OpenAI-compatible endpoint
+> `LLM_BASE_URL` names (default Groq, `openai/gpt-oss-120b`). `ANTHROPIC_API_KEY`,
+> `RERANK_PROVIDER` and the Anthropic/Mistral/Ollama adapters are gone; `build_reranker` now reads
+> "token set → `LLMReranker`, else `FakeReranker`". The retrieval flow, scoring prompt, grounding
+> guard and thresholds are unchanged. Current state: README "LLM configuration", PRD §8 Phase 8.
+
 ## Summary
 
 Phase 2 left the database full of embedded chunks that nothing reads. Phase 3 adds the read

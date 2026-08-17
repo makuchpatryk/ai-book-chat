@@ -1,5 +1,11 @@
 # Phase 6 — Hardening — Implementation Plan
 
+> **Partly superseded (2026-08-18).** The usage log lines this plan added no longer carry a
+> `provider` field — there is one LLM path now, so `model` identifies the call. `AnthropicGenerator`
+> is `LLMGenerator`, and `stop_reason` comes from the OpenAI-protocol `finish_reason`. The retry and
+> delete endpoints, error surfaces, heartbeat and the three chat bugfixes are unchanged. Current
+> state: README "LLM configuration", PRD §8 Phase 8.
+
 ## Summary
 
 Phases 1–5 shipped the happy path: upload → ingest → retrieve → chat → UI. What's missing is

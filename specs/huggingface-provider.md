@@ -1,5 +1,15 @@
 # Hugging Face Inference Providers — Implementation Plan
 
+> **Superseded (2026-08-18).** The multi-provider switch this plan introduced was collapsed to a
+> single OpenAI-compatible path. The Anthropic, Mistral and Ollama chat/rewrite/rerank adapters and
+> the `CHAT_PROVIDER`/`RERANK_PROVIDER`/`EMBEDDING_PROVIDER` settings are gone; `HF_TOKEN` and
+> `HF_BASE_URL` are now `LLM_TOKEN` and `LLM_BASE_URL` (default: Groq); `app/llm/hf_client.py` is
+> `app/llm/client.py` and the `HF*` classes are `LLM*`; `HFEmbedder`, `hf_bill_to` and the
+> `LLM_API_KEY` fallback were deleted, and the embeddings cutover sketched at the end happened
+> against local Ollama at 768 dims instead. Current state: README "LLM configuration", PRD §8
+> Phase 8. Kept as the record of why the OpenAI-protocol seam was built — the transport survived the
+> cleanup unchanged, only its name was HF-specific.
+
 ## Summary
 
 The three LLM seams in this codebase (`chat/generate.py`, `chat/rewrite.py`, `retrieval/rerank.py`)
