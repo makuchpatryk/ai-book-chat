@@ -19,17 +19,54 @@ export function MessageList({
 }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  /** Whether the view was pinned to the bottom before the latest render. */
+  const anchoredRef = useRef(true);
+  /** Set while we scroll ourselves, so the resulting events don't unpin. */
+  const selfScrollRef = useRef(false);
+  const selfScrollTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (containerRef.current) {
-      const { scrollHeight, scrollTop, clientHeight } = containerRef.current;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 80;
-
-      if (isNearBottom) {
-        endRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
+  const scrollToBottom = (behavior: ScrollBehavior) => {
+    anchoredRef.current = true;
+    selfScrollRef.current = true;
+    if (selfScrollTimer.current !== null) {
+      window.clearTimeout(selfScrollTimer.current);
     }
-  }, [messages, liveText, pendingUserText]);
+    // Smooth scrolling emits intermediate events; release the guard once it settles.
+    selfScrollTimer.current = window.setTimeout(() => {
+      selfScrollRef.current = false;
+      selfScrollTimer.current = null;
+    }, behavior === "smooth" ? 700 : 100);
+    endRef.current?.scrollIntoView({ behavior });
+  };
+
+  const handleScroll = () => {
+    if (selfScrollRef.current || !containerRef.current) return;
+    const { scrollHeight, scrollTop, clientHeight } = containerRef.current;
+    anchoredRef.current = scrollHeight - scrollTop - clientHeight < 80;
+  };
+
+  useEffect(
+    () => () => {
+      if (selfScrollTimer.current !== null) {
+        window.clearTimeout(selfScrollTimer.current);
+      }
+    },
+    [],
+  );
+
+  // Sending a message always jumps to the bottom, even if scrolled away.
+  useEffect(() => {
+    if (pendingUserText) {
+      scrollToBottom("smooth");
+    }
+  }, [pendingUserText]);
+
+  // Incoming content only follows along when already pinned to the bottom.
+  useEffect(() => {
+    if (anchoredRef.current) {
+      scrollToBottom("smooth");
+    }
+  }, [messages, liveText]);
 
   // The refetched list lands one render before the optimistic copy is cleared;
   // skip the placeholder once the server echoes the same message back.
@@ -41,6 +78,7 @@ export function MessageList({
   return (
     <div
       ref={containerRef}
+      onScroll={handleScroll}
       className="flex-1 overflow-y-auto p-4 space-y-4"
     >
       {messages.length === 0 && !streaming && !showPending ? (
