@@ -148,3 +148,33 @@ def test_build_generator_returns_the_real_adapter_with_a_token() -> None:
 
 def test_build_generator_falls_back_to_the_fake_without_a_token() -> None:
     assert isinstance(build_generator(Settings(llm_token=None)), FakeGenerator)
+
+
+@pytest.mark.asyncio
+async def test_fake_generator_cites_pages_from_the_context() -> None:
+    """Offline runs mirror the grounded shape: pages come out of the system prompt."""
+    generator = FakeGenerator()
+    system = "prompt\n\nContext from the document:\n[Page 3-4] body\n\n[Page 9-9] body"
+
+    text = ""
+    async for event in generator.stream(system, [ChatMessage(role="user", content="q")]):
+        if isinstance(event, TextDelta):
+            text += event.text
+
+    assert "p.3" in text and "p.4" in text and "p.9" in text
+
+
+@pytest.mark.asyncio
+async def test_fake_generator_without_context_names_the_gap() -> None:
+    """No passages: the stub says so, then speaks outside the document."""
+    generator = FakeGenerator()
+
+    text = ""
+    async for event in generator.stream(
+        "prompt with no passages", [ChatMessage(role="user", content="q")]
+    ):
+        if isinstance(event, TextDelta):
+            text += event.text
+
+    assert "doesn't cover" in text
+    assert "general knowledge" in text

@@ -16,7 +16,9 @@ export function MessageBubble({ message }: { message: Message }) {
         ) : (
           <div className="space-y-2">
             <div className="text-sm text-muted-foreground">
-              {message.grounded === false && <p>Not found in this document</p>}
+              {message.grounded === false && (
+                <p>Not in this document — answered from general knowledge</p>
+              )}
               {message.truncated && <p>Stopped early</p>}
             </div>
 

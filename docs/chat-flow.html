@@ -368,7 +368,7 @@
   </section>
 
   <section>
-    <h2>Where "I couldn't find that" comes from</h2>
+    <h2>Where "the book does not cover this" comes from</h2>
 
     <figure>
       <svg viewBox="0 0 1020 330" role="img" aria-label="Decision diagram of the grounding guard: three failure exits — no chunks, no chunk scoring five or higher, and re-ranker degraded with nothing inside the distance threshold — all lead to a refusal, while the passing path cuts to the top eight chunks and generates.">
@@ -440,12 +440,12 @@
           <text x="690" y="194" text-anchor="end" fill="var(--muted)">rerank_degraded_no_match</text>
 
           <rect x="200" y="250" width="620" height="60" rx="3" fill="none" stroke="var(--stop)"/>
-          <text x="510" y="276" text-anchor="middle" fill="var(--stop)">grounded = false · the generation model is never called</text>
-          <text x="510" y="296" text-anchor="middle" fill="var(--muted)">one token frame: "I couldn't find that in this document." then done</text>
+          <text x="510" y="276" text-anchor="middle" fill="var(--stop)">grounded = false · no chunks go into the prompt</text>
+          <text x="510" y="296" text-anchor="middle" fill="var(--muted)">OUTSIDE_KNOWLEDGE_PROMPT: says the book lacks it, then answers from general knowledge</text>
         </g>
       </svg>
 
-      <figcaption>Three separate exits produce the same refusal, each with its own reason code in the logs. The refusal is emitted as a normal <code>token</code> frame followed by <code>done</code>, so the client renders it through the same path as a real answer — and the generation model is never called.</figcaption>
+      <figcaption>Three separate exits land on the same ungrounded path, each with its own reason code in the logs. The generation model still runs, but with no passages and a prompt that makes it open by saying the book does not cover the question before answering from general knowledge; <code>grounded=false</code> is what the client badges.</figcaption>
     </figure>
   </section>
 

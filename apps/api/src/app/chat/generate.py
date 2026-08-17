@@ -5,6 +5,7 @@ and a deterministic offline fallback for when no token is configured.
 """
 
 import logging
+import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -14,6 +15,9 @@ from app.ingestion.tokenizer import count_tokens
 from app.llm.client import build_async_client, is_billing_error
 
 logger = logging.getLogger(__name__)
+
+# Matches the "[Page 12-14]" headers the chat pipeline puts before each chunk.
+_PAGE_RANGE_RE = re.compile(r"\[Page (\d+)-(\d+)\]")
 
 
 @dataclass
@@ -49,7 +53,12 @@ class Generator(Protocol):
 
 
 class FakeGenerator:
-    """Deterministic offline generator: yields page numbers and a fixed sentence."""
+    """Deterministic offline generator: yields page numbers and a fixed sentence.
+
+    It mirrors the two shapes the real generator is prompted for — a grounded
+    answer with page citations, and an ungrounded one that names the gap and
+    then speaks from general knowledge — so offline runs exercise both paths.
+    """
 
     def __init__(self, page_numbers: list[int] | None = None) -> None:
         self._page_numbers = page_numbers or []
@@ -58,11 +67,19 @@ class FakeGenerator:
         self, system: str, messages: list[ChatMessage]
     ) -> AsyncIterator[StreamEvent]:
         """Yield text word by word, then done event."""
-        if self._page_numbers:
-            page_str = ", ".join(f"p.{p}" for p in sorted(set(self._page_numbers)))
+        # The pipeline builds one generator for every turn, so the pages come
+        # from the context in `system` unless a caller pinned them explicitly.
+        pages = self._page_numbers or [
+            int(n) for match in _PAGE_RANGE_RE.findall(system) for n in match
+        ]
+        if pages:
+            page_str = ", ".join(f"p.{p}" for p in sorted(set(pages)))
             text = f"Based on {page_str}: The document discusses this topic across multiple sections."
         else:
-            text = "I couldn't find information about this in the document."
+            text = (
+                "This document doesn't cover the question. From general knowledge: "
+                "no offline answer is available, so run with LLM_TOKEN set for a real one."
+            )
 
         for word in text.split():
             yield TextDelta(text=word + " ")

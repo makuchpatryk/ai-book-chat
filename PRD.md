@@ -36,9 +36,9 @@ The user uploads a document and asks questions about it. Answers are grounded st
 |---|---|---|
 | US-1 | Upload a PDF | File ≤ 50 MB, PDF only. Processing status visible (queued → parsing → embedding → ready). Failure shows a readable reason. |
 | US-2 | See my documents | List with title, page count, upload date, status. Delete removes document, chunks and chat history. |
-| US-3 | Ask a question | Answer streams token by token. Content derived only from the document. |
+| US-3 | Ask a question | Answer streams token by token. Content from the document is cited; anything added beyond it is labelled as outside the book. |
 | US-4 | See sources | Each answer lists the page numbers it drew from. |
-| US-5 | Honest "I don't know" | If retrieval finds nothing relevant, the answer states the information isn't in the document. No invented content. |
+| US-5 | Honest about coverage | If retrieval finds nothing relevant, the answer says up front that the document doesn't cover it, then answers from general knowledge without citing pages. Nothing outside the document is attributed to it. |
 | US-6 | Follow-up questions | Pronouns and implicit references resolve against prior turns ("and what about his brother?"). |
 | US-7 | Resume past chats | Conversations are persisted per document, listed, and resumable. |
 
@@ -52,7 +52,7 @@ The user uploads a document and asks questions about it. Answers are grounded st
 
 ### 2.4 Business rules
 
-- **Grounding** — every answer either cites retrieved chunks or explicitly says the information isn't present.
+- **Grounding** — every claim taken from the book cites its chunks; anything the book doesn't contain is stated as coming from outside it, never with a page.
 - **Isolation** — a conversation is scoped to exactly one document.
 - **Idempotent cost** — embedding runs once per document; conversation history sent to the LLM is capped.
 - **Retention** — the original PDF is kept (needed to reference pages).

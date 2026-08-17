@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.chat.generate import ChatMessage, Generator, GenerationDone, TextDelta
-from app.chat.prompts import ANSWER_PROMPT
+from app.chat.prompts import ANSWER_PROMPT, OUTSIDE_KNOWLEDGE_PROMPT
 from app.chat.rewrite import rewrite as rewrite_question
 from app.config import Settings
 from app.db.models import Message, MessageRole, MessageSource
@@ -110,18 +110,6 @@ async def answer(
         pages_list = sorted(list(pages_set))
         yield SourcesEvent(results=source_results, pages=pages_list)
 
-        # If not grounded, emit refusal and return
-        if not grounded:
-            yield TokenEvent(text="I couldn't find that in this document.")
-            yield DoneEvent(grounded=False, truncated=False)
-            return
-
-        # Step 4: Generate answer using retrieved chunks
-        context_chunks = [candidate.chunk for candidate, _ in search_outcome.results]
-        chunk_text = "\n\n".join(
-            f"[Page {c.page_start}-{c.page_end}] {c.content}" for c in context_chunks
-        )
-
         # Build conversation history for context (last N turns)
         chat_messages = [
             ChatMessage(role=role, content=content)
@@ -129,8 +117,17 @@ async def answer(
         ]
         chat_messages.append(ChatMessage(role="user", content=user_question))
 
-        # Generate with context
-        system_prompt = f"{ANSWER_PROMPT}\n\nContext from the document:\n{chunk_text}"
+        # Step 4: Generate. With chunks, answer grounded in them; without, let the
+        # model answer from its own knowledge but say the book does not cover it.
+        if grounded:
+            context_chunks = [candidate.chunk for candidate, _ in search_outcome.results]
+            chunk_text = "\n\n".join(
+                f"[Page {c.page_start}-{c.page_end}] {c.content}" for c in context_chunks
+            )
+            system_prompt = f"{ANSWER_PROMPT}\n\nContext from the document:\n{chunk_text}"
+        else:
+            system_prompt = OUTSIDE_KNOWLEDGE_PROMPT
+
         answer_text = ""
         truncated = False
         async for event in generator.stream(system_prompt, chat_messages):
@@ -155,7 +152,7 @@ async def answer(
                 )
 
         # Step 5: Return done event (persistence happens in the route)
-        yield DoneEvent(grounded=True, truncated=truncated)
+        yield DoneEvent(grounded=grounded, truncated=truncated)
 
     except Exception as e:
         logger.exception(f"answer generation failed: {e}")

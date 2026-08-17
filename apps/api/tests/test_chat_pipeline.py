@@ -5,9 +5,11 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.chat.generate import FakeGenerator
-from app.chat.pipeline import DoneEvent, answer
+from app.chat.generate import FakeGenerator, GenerationDone, TextDelta
+from app.chat.pipeline import DoneEvent, TokenEvent, answer
+from app.chat.prompts import OUTSIDE_KNOWLEDGE_PROMPT
 from app.db.models import Chunk, Conversation, Document, DocumentStatus, Section
+from app.retrieval.pipeline import SearchOutcome
 
 
 async def create_test_document_with_conversation(db: AsyncSession, settings):
@@ -117,3 +119,53 @@ async def test_pipeline_recent_turns_cached(
         pass
 
     assert call_count == 1, f"recent_turns should be called once, was called {call_count} times"
+
+
+class RecordingGenerator:
+    """Captures the system prompt it was called with, then streams one delta."""
+
+    def __init__(self) -> None:
+        self.system: str | None = None
+
+    async def stream(self, system, messages):
+        self.system = system
+        yield TextDelta(text="answer body")
+        yield GenerationDone(input_tokens=1, output_tokens=1)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_ungrounded_answers_from_general_knowledge(
+    app_session: AsyncSession, settings, monkeypatch
+):
+    """No relevant chunks: the model still runs, on the outside-knowledge prompt."""
+    document, conversation = await create_test_document_with_conversation(
+        app_session, settings
+    )
+
+    async def empty_search(*args, **kwargs):
+        return SearchOutcome(
+            results=[],
+            grounded=False,
+            reranked=False,
+            reason="no_relevant_chunks",
+            candidate_count=0,
+        )
+
+    monkeypatch.setattr("app.chat.pipeline.search_pipeline", empty_search)
+
+    generator = RecordingGenerator()
+    rewriter = type("FakeRewriter", (), {"rewrite": lambda *a: "test"})()
+
+    events = []
+    async for event in answer(
+        app_session, conversation.id, "what about Kubernetes?", generator, rewriter, settings
+    ):
+        events.append(event)
+
+    assert generator.system == OUTSIDE_KNOWLEDGE_PROMPT
+
+    tokens = "".join(e.text for e in events if isinstance(e, TokenEvent))
+    assert tokens == "answer body"
+
+    done = next(e for e in events if isinstance(e, DoneEvent))
+    assert done.grounded is False

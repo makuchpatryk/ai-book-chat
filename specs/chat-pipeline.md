@@ -19,9 +19,10 @@ feature-complete for US-3, US-4, US-5, US-6 and US-7 — Phase 5 is pure fronten
 
 - `POST /conversations/{id}/messages` streams `sources` → `token`* → `done` as `text/event-stream`,
   with the first byte on the wire in under 3 s on a READY 300-page book (PRD §2.5).
-- Answers cite pages as `[p.N]` and are drawn only from the retrieved chunks; a question with no
-  relevant content streams the canned refusal and persists `grounded=false` with zero
-  `message_sources` rows (US-5).
+- Answers cite pages as `[p.N]` for every claim taken from the retrieved chunks; anything added
+  from outside the book is marked as such and carries no page. A question with no relevant
+  content is answered from the model's own knowledge, opening with a statement that the book does
+  not cover it, and persists `grounded=false` with zero `message_sources` rows (US-5).
 - A follow-up like "and what about his brother?" resolves against the prior turns — the rewritten
   standalone question is what gets embedded, not the raw pronoun form (US-6).
 - `GET /conversations/{id}/messages` returns the full thread, in order, with per-message page
@@ -90,9 +91,10 @@ set conversation.title if unset
 2. Retrieve         retrieval.pipeline.search(session, document_id, standalone_q)
   │
   ├─ not grounded ─→ event: sources { results: [], pages: [] }
-  │                  event: token   { text: "I couldn't find that in this document." }
+  │                  generate with OUTSIDE_KNOWLEDGE_PROMPT (no chunks): the model says
+  │                  the book does not cover this, then answers from its own knowledge
   │                  persist assistant message (grounded=false, no sources)
-  │                  event: done    { message_id }
+  │                  event: done    { message_id, grounded: false }
   │
 3. Generate         event: sources { results: [...8 chunks...], pages: [12, 47] }
                     Sonnet 5, streamed → event: token { text } per delta
