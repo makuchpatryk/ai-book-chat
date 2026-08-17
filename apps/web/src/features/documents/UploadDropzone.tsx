@@ -28,7 +28,7 @@ export function UploadDropzone() {
     mutate(file);
   };
 
-  const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrag = (e: React.DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
@@ -38,7 +38,7 @@ export function UploadDropzone() {
     }
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
@@ -49,44 +49,43 @@ export function UploadDropzone() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.currentTarget.files?.[0];
+    // Clear the value so picking the same file twice still fires a change.
+    e.currentTarget.value = "";
     if (file) handleFile(file);
   };
 
   return (
     <div className="space-y-3">
-      <div
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        onChange={handleInputChange}
+        className="hidden"
+        disabled={isPending}
+      />
+
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        className="relative rounded-lg border-2 border-dashed border-border p-6 transition-colors hover:border-primary"
+        disabled={isPending}
+        className="relative w-full cursor-pointer rounded-lg border-2 border-dashed border-border p-6 transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-50"
         style={dragActive ? { borderColor: "hsl(var(--primary))" } : {}}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf"
-          onChange={handleInputChange}
-          className="hidden"
-          disabled={isPending}
-        />
-
-        <div className="flex flex-col items-center justify-center gap-2">
+        {/* Ignore pointer events so dragging over the label doesn't fire dragleave. */}
+        <div className="pointer-events-none flex flex-col items-center justify-center gap-2">
           <Upload className="size-6 text-muted-foreground" />
           <div className="text-center text-sm">
-            <p className="text-foreground font-medium">Drop PDF here or</p>
-            <button
-              type="button"
-              className="text-xs text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed p-0 h-auto"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isPending}
-            >
-              click to upload
-            </button>
+            <p className="text-foreground font-medium">Drop PDF here</p>
+            <p className="text-xs text-primary">or click to upload</p>
           </div>
           <p className="text-xs text-muted-foreground">Max {MAX_SIZE_MB} MB</p>
         </div>
-      </div>
+      </button>
 
       {error && (
         <Alert variant="destructive">
