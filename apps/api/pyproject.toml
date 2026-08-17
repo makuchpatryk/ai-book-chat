@@ -21,13 +21,14 @@ dependencies = [
     "huggingface-hub>=0.28",
     "tiktoken>=0.8",
     "tenacity>=9.0",
+    # Runtime, not just tests: the Ollama adapters talk HTTP directly.
+    "httpx>=0.28",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "httpx>=0.28",
     "ruff>=0.8",
     "mypy>=1.13",
 ]

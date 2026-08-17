@@ -64,7 +64,7 @@ async def create_ready_document(
             page_end=1 + i,
             token_count=100,
             order_index=i,
-            embedding=[0.1] * 1536,
+            embedding=[0.1] * 768,
         )
         db.add(chunk)
         chunks.append(chunk)

@@ -10,6 +10,7 @@ import math
 import random
 from typing import Any, Protocol
 
+import httpx
 from openai import APIConnectionError, APITimeoutError, InternalServerError, OpenAI, RateLimitError
 from tenacity import (
     retry,
@@ -147,6 +148,63 @@ class HFEmbedder:
         return [[float(value) for value in row] for row in response]
 
 
+class OllamaEmbedder:
+    """Local Ollama embeddings over HTTP — no key, no per-token cost.
+
+    Embedding is the one stage a CPU-only box handles comfortably: short inputs
+    and no token generation, unlike the chat and re-rank calls.
+
+    The width check is not paranoia. `nomic-embed-text` is 768-dimensional where
+    OpenAI's default is 1536, and `chunks.embedding` holds exactly one of them —
+    pointing this at another local model is a migration, not a config change.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        dimensions: int,
+        batch_size: int = 32,
+        timeout: float = 120.0,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._dimensions = dimensions
+        self._batch_size = batch_size
+        self._timeout = timeout
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), self._batch_size):
+            batch_vectors = self._embed_batch(texts[start : start + self._batch_size])
+            # Checked on the first batch rather than after the whole book: only
+            # the model knows its width, and it has to match the column.
+            if batch_vectors and len(batch_vectors[0]) != self._dimensions:
+                raise ValueError(
+                    f"{self._model} returned {len(batch_vectors[0])}-dimensional vectors, "
+                    f"expected {self._dimensions}; set EMBEDDING_DIMENSIONS to the model's "
+                    f"width and migrate the chunks.embedding column to match"
+                )
+            vectors.extend(batch_vectors)
+        return vectors
+
+    @retry(
+        retry=retry_if_exception_type((httpx.TransportError, httpx.TimeoutException)),
+        wait=wait_exponential_jitter(initial=1, max=30),
+        stop=stop_after_attempt(MAX_ATTEMPTS),
+        reraise=True,
+    )
+    def _embed_batch(self, batch: list[str]) -> list[list[float]]:
+        response = httpx.post(
+            f"{self._base_url}/api/embed",
+            json={"model": self._model, "input": batch},
+            timeout=self._timeout,
+        )
+        response.raise_for_status()
+        # `/api/embed` answers in request order, one vector per input.
+        return [[float(value) for value in row] for row in response.json()["embeddings"]]
+
+
 class FakeEmbedder:
     """Deterministic offline stand-in: same text in, same unit vector out.
 
@@ -155,7 +213,9 @@ class FakeEmbedder:
     second embedding run happened.
     """
 
-    def __init__(self, dimensions: int = 1536) -> None:
+    def __init__(self, dimensions: int = 768) -> None:
+        # Defaults to the width of `chunks.embedding`, so a bare `FakeEmbedder()`
+        # produces vectors the column will accept.
         self.dimensions = dimensions
         self.calls = 0
         self.embedded_texts = 0
@@ -176,9 +236,20 @@ class FakeEmbedder:
 def build_embedder(settings: Settings | None = None) -> Embedder:
     """Real embedder when a key is configured, deterministic fake otherwise."""
     settings = settings or get_settings()
+    provider = settings.embedding_provider.lower()
 
-    if settings.embedding_provider.lower() == "huggingface":
+    if provider == "huggingface":
         return _build_hf_embedder(settings)
+
+    # Ollama is local: there is no key to be missing, so no fake fallback.
+    if provider == "ollama":
+        _require_column_width(settings)
+        return OllamaEmbedder(
+            base_url=settings.ollama_base_url,
+            model=settings.ollama_embedding_model,
+            dimensions=settings.embedding_dimensions,
+            batch_size=settings.embedding_batch_size,
+        )
 
     if not settings.openai_api_key:
         logger.warning("OPENAI_API_KEY unset — using FakeEmbedder; search results will be noise")
@@ -192,16 +263,16 @@ def build_embedder(settings: Settings | None = None) -> Embedder:
     )
 
 
-def _build_hf_embedder(settings: Settings) -> Embedder:
-    """Hugging Face embedder, refusing to build if it cannot fit the column.
+def _require_column_width(settings: Settings) -> None:
+    """Raise unless the configured width is the one `chunks.embedding` holds.
 
     `chunks.embedding` is a fixed-width `Vector`, so a model with a different
     dimension has to be a migration, not a config change. Failing here beats a
     `DataError` thousands of chunks into a re-ingest.
 
-    This half only catches a configured width the column cannot hold; the model's
-    real width is unknown until it answers, so `HFEmbedder` checks that on the
-    first batch.
+    This only catches a configured width the column cannot hold; the model's real
+    width is unknown until it answers, so the embedders check that on the first
+    batch.
     """
     # Imported lazily: the vector width lives with the model, and this keeps the
     # ingestion module importable without the ORM.
@@ -212,6 +283,11 @@ def _build_hf_embedder(settings: Settings) -> Embedder:
             f"EMBEDDING_DIMENSIONS={settings.embedding_dimensions} does not match the "
             f"chunks.embedding column ({COLUMN_DIMENSIONS}); migrate the column first"
         )
+
+
+def _build_hf_embedder(settings: Settings) -> Embedder:
+    """Hugging Face embedder, refusing to build if it cannot fit the column."""
+    _require_column_width(settings)
 
     token = settings.hf_token or settings.llm_api_key
     if not token:

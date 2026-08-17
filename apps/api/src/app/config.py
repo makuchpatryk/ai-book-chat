@@ -59,10 +59,11 @@ class Settings(BaseSettings):
     hf_bill_to: str | None = None  # X-HF-Bill-To: charge an org instead of the user
 
     # Ingestion — embeddings
-    embedding_provider: str = "openai"  # openai | huggingface
+    embedding_provider: str = "openai"  # openai | ollama | huggingface
     embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
+    embedding_dimensions: int = 768  # width of chunks.embedding; see EMBEDDING_DIMENSIONS
     embedding_batch_size: int = 100
+    ollama_embedding_model: str = "nomic-embed-text"  # 768d, matches the column
     hf_embedding_model: str = "intfloat/multilingual-e5-large-instruct"
     hf_embedding_query_prefix: str = "query: "
     hf_embedding_passage_prefix: str = "passage: "

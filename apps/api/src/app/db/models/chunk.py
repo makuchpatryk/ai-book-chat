@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 # Fixed by the column type, so it cannot follow `settings.embedding_dimensions`:
 # changing it means a migration, not a config change.
-EMBEDDING_DIMENSIONS = 1536
+EMBEDDING_DIMENSIONS = 768
 
 
 class Chunk(Base):

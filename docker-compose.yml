@@ -30,6 +30,12 @@ services:
   api:
     build: ./apps/api
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src
+    # The container has no `.env` on disk, so provider keys and model overrides
+    # have to be injected. `environment:` below still wins, which is what keeps
+    # the in-network postgres/redis hostnames from being clobbered by the
+    # localhost URLs the host tooling reads out of the same file.
+    env_file:
+      - .env
     environment:
       <<: &backend_env
         DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bookchat}:${POSTGRES_PASSWORD:-bookchat}@postgres:5432/${POSTGRES_DB:-bookchat}
@@ -41,6 +47,19 @@ services:
         CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
         OPENAI_API_KEY: ${OPENAI_API_KEY:-}
         ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+        # Ollama runs on the host, not in the compose network, so `localhost`
+        # from `.env` would resolve to the container itself.
+        #
+        # Port 11435, not the default 11434: the packaged systemd service binds
+        # 127.0.0.1 only, which refuses the bridge gateway. A second `ollama
+        # serve` on 0.0.0.0:11435 shares the same model store and needs no root.
+        # To go back to one server, add the drop-in below and set 11434 here:
+        #   /etc/systemd/system/ollama.service.d/override.conf
+        #   [Service]
+        #   Environment="OLLAMA_HOST=0.0.0.0:11434"
+        OLLAMA_BASE_URL: ${OLLAMA_DOCKER_BASE_URL:-http://host.docker.internal:11435}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
@@ -70,8 +89,12 @@ services:
     # PDF parsing is CPU-bound; the default (one child per core) would let two
     # big books saturate the machine.
     command: celery -A app.worker.celery_app worker -l info --concurrency=2
+    env_file:
+      - .env
     environment:
       <<: *backend_env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./apps/api/src:/app/src
       - uploads_data:/data/uploads

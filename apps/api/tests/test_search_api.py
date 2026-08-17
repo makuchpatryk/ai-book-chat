@@ -99,7 +99,7 @@ async def test_search_reranker_degrade_applies_distance_filter(
         page_end=1,
         token_count=10,
         order_index=0,
-        embedding=[0.0] * 1536,
+        embedding=[0.0] * 768,
     )
     app_session.add(chunk)
     await app_session.commit()

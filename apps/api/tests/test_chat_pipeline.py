@@ -46,7 +46,7 @@ async def create_test_document_with_conversation(db: AsyncSession, settings):
         page_end=5,
         token_count=100,
         order_index=0,
-        embedding=[0.1] * 1536,
+        embedding=[0.1] * 768,
     )
     db.add(chunk)
 
