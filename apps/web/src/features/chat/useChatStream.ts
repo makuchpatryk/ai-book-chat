@@ -6,6 +6,7 @@ interface ChatStreamState {
   status: "idle" | "streaming" | "error";
   liveText: string;
   error: string | null;
+  pendingUserText: string | null;
 }
 
 export function useChatStream(conversationId: string) {
@@ -13,6 +14,7 @@ export function useChatStream(conversationId: string) {
     status: "idle",
     liveText: "",
     error: null,
+    pendingUserText: null,
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -30,11 +32,27 @@ export function useChatStream(conversationId: string) {
     }
   }, []);
 
+  /**
+   * Refetch persisted messages, then drop the optimistic user bubble only once
+   * the server copy has arrived — otherwise it flickers out and back in.
+   */
+  const syncMessages = useCallback(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["messages", conversationId],
+    });
+    setState((prev) => ({ ...prev, pendingUserText: null }));
+  }, [queryClient, conversationId]);
+
   const startStream = useCallback(
     async (content: string) => {
       if (state.status === "streaming") return;
 
-      setState({ status: "streaming", liveText: "", error: null });
+      setState({
+        status: "streaming",
+        liveText: "",
+        error: null,
+        pendingUserText: content,
+      });
       abortControllerRef.current = new AbortController();
       textBufferRef.current = "";
 
@@ -50,7 +68,7 @@ export function useChatStream(conversationId: string) {
             flushBuffer();
 
             setState((prev) => ({ ...prev, status: "idle" }));
-            queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+            syncMessages();
           } else if (event.type === "error") {
             if (timerRef.current) clearTimeout(timerRef.current);
             flushBuffer();
@@ -60,7 +78,7 @@ export function useChatStream(conversationId: string) {
               status: "error",
               error: event.detail,
             }));
-            queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+            syncMessages();
           }
         }
       } catch (err) {
@@ -73,14 +91,14 @@ export function useChatStream(conversationId: string) {
             status: "error",
             error: (err as Error).message || "Stream error",
           }));
-          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+          syncMessages();
         } else {
           if (timerRef.current) clearTimeout(timerRef.current);
           flushBuffer();
         }
       }
     },
-    [conversationId, state.status, queryClient, flushBuffer]
+    [conversationId, state.status, flushBuffer, syncMessages]
   );
 
   const abort = useCallback(() => {
@@ -89,9 +107,9 @@ export function useChatStream(conversationId: string) {
       if (timerRef.current) clearTimeout(timerRef.current);
       flushBuffer();
       setState((prev) => ({ ...prev, status: "idle" }));
-      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      syncMessages();
     }
-  }, [state.status, queryClient, conversationId, flushBuffer]);
+  }, [state.status, flushBuffer, syncMessages]);
 
   useEffect(() => {
     return () => {
