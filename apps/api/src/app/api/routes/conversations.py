@@ -16,7 +16,14 @@ from app.db.session import AsyncSessionLocal
 from app.chat.generate import build_generator
 from app.chat.pipeline import DoneEvent, ErrorEvent, SourcesEvent, TokenEvent, answer
 from app.chat.rewrite import build_rewriter
-from app.db.models import Conversation, DocumentStatus, Message, MessageRole, MessageSource
+from app.db.models import (
+    Chunk,
+    Conversation,
+    DocumentStatus,
+    Message,
+    MessageRole,
+    MessageSource,
+)
 from app.schemas.chat import (
     ConversationRead,
     DonePayload,
@@ -87,14 +94,17 @@ async def get_messages(
     if conversation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
 
-    # Load messages with sources using joinedload for chunks
-    from app.db.models import Chunk
-
+    # Eager-load through to the section: reading chunk.section lazily on an
+    # AsyncSession raises MissingGreenlet.
     result = await db.execute(
         select(Message)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.order_index)
-        .options(selectinload(Message.sources).joinedload(MessageSource.chunk))
+        .options(
+            selectinload(Message.sources)
+            .joinedload(MessageSource.chunk)
+            .joinedload(Chunk.section)
+        )
     )
     messages = result.unique().scalars().all()
 

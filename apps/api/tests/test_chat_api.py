@@ -12,7 +12,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.chat.pipeline import DoneEvent, SourcesEvent, TokenEvent
-from app.db.models import Chunk, Conversation, Document, DocumentStatus, Message, Section
+from app.db.models import (
+    Chunk,
+    Conversation,
+    Document,
+    DocumentStatus,
+    Message,
+    MessageRole,
+    MessageSource,
+    Section,
+)
 
 
 async def create_ready_document(
@@ -328,6 +337,45 @@ async def test_chat_document_not_ready(
     )
 
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_get_messages_returns_section_title(
+    client: AsyncClient, app_session: AsyncSession, settings
+):
+    """History reads the chunk's section; a lazy load there raises MissingGreenlet."""
+    document, chunks = await create_ready_document(app_session, settings)
+    conversation = Conversation(id=uuid4(), document_id=document.id, title="Test")
+    app_session.add(conversation)
+    await app_session.flush()
+
+    assistant = Message(
+        id=uuid4(),
+        conversation_id=conversation.id,
+        role=MessageRole.ASSISTANT,
+        content="An answer.",
+        grounded=True,
+        truncated=False,
+        order_index=0,
+    )
+    app_session.add(assistant)
+    await app_session.flush()
+
+    app_session.add(
+        MessageSource(
+            message_id=assistant.id,
+            chunk_id=chunks[0].id,
+            score=9,
+            rank=0,
+        )
+    )
+    await app_session.commit()
+
+    response = await client.get(f"/conversations/{conversation.id}/messages")
+
+    assert response.status_code == 200
+    sources = response.json()[0]["sources"]
+    assert [s["section_title"] for s in sources] == ["Introduction"]
 
 
 @pytest.mark.asyncio
