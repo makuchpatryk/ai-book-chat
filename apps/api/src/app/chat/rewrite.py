@@ -7,7 +7,7 @@ import anyio
 
 from app.chat.prompts import REWRITE_PROMPT
 from app.config import Settings, get_settings
-from app.llm.hf_client import build_hf_sync_client, hf_api_key, hf_extra_headers, message_text
+from app.llm.client import build_sync_client, message_text
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +26,15 @@ class FakeRewriter:
         return question
 
 
-class HFRewriter:
-    """Hugging Face Inference Providers query rewriter (OpenAI-compatible router)."""
+class LLMRewriter:
+    """Query rewriter over an OpenAI-compatible chat-completions endpoint."""
 
-    def __init__(
-        self, client: Any, model: str, extra_headers: dict[str, str] | None = None
-    ) -> None:
+    def __init__(self, client: Any, model: str) -> None:
         self._client = client
         self._model = model
-        self._extra_headers = extra_headers or {}
 
     def rewrite(self, question: str, history: str) -> str:
-        """Rewrite question via the HF router. Never raises."""
+        """Rewrite question via the configured endpoint. Never raises."""
         try:
             completion = self._client.chat.completions.create(
                 model=self._model,
@@ -49,7 +46,6 @@ class HFRewriter:
                         "content": f"{history}\n\nLatest question: {question}",
                     },
                 ],
-                extra_headers=self._extra_headers,
             )
             result = message_text(completion.choices[0])
             if not result or len(result) > 500:
@@ -60,7 +56,6 @@ class HFRewriter:
                 "rewrite usage",
                 extra={
                     "phase": "rewrite",
-                    "provider": "huggingface",
                     "model": self._model,
                     "input_tokens": getattr(usage, "prompt_tokens", None),
                     "output_tokens": getattr(usage, "completion_tokens", None),
@@ -72,184 +67,15 @@ class HFRewriter:
             return question
 
 
-class AnthropicRewriter:
-    """Anthropic Claude query rewriter."""
-
-    def __init__(self, client: Any, model: str) -> None:
-        self._client = client
-        self._model = model
-
-    def rewrite(self, question: str, history: str) -> str:
-        """Rewrite question using Claude."""
-        try:
-            messages = [
-                {
-                    "role": "user",
-                    "content": f"{history}\n\nLatest question: {question}",
-                }
-            ]
-            message = self._client.messages.create(
-                model=self._model,
-                max_tokens=512,
-                system=REWRITE_PROMPT,
-                messages=messages,
-            )
-            result = message.content[0].text.strip()
-            if not result or len(result) > 500:
-                logger.warning("rewrite produced empty or oversized result, using original")
-                return question
-            logger.info(
-                "rewrite usage",
-                extra={
-                    "phase": "rewrite",
-                    "provider": "anthropic",
-                    "model": self._model,
-                    "input_tokens": message.usage.input_tokens,
-                    "output_tokens": message.usage.output_tokens,
-                },
-            )
-            return result
-        except Exception as e:
-            logger.warning(f"rewrite failed ({e}), using original question")
-            return question
-
-
-class MistralRewriter:
-    """Mistral API query rewriter."""
-
-    def __init__(self, client: Any, model: str) -> None:
-        self._client = client
-        self._model = model
-
-    def rewrite(self, question: str, history: str) -> str:
-        """Rewrite question using Mistral."""
-        try:
-            messages = [
-                {
-                    "role": "user",
-                    "content": f"{history}\n\nLatest question: {question}",
-                }
-            ]
-            message = self._client.messages.create(
-                model=self._model,
-                max_tokens=512,
-                messages=messages,
-            )
-            result = message.content[0].text.strip()
-            if not result or len(result) > 500:
-                logger.warning("rewrite produced empty or oversized result, using original")
-                return question
-            input_tokens = None
-            output_tokens = None
-            if hasattr(message, "usage"):
-                input_tokens = getattr(message.usage, "prompt_tokens", None)
-                output_tokens = getattr(message.usage, "completion_tokens", None)
-            logger.info(
-                "rewrite usage",
-                extra={
-                    "phase": "rewrite",
-                    "provider": "mistral",
-                    "model": self._model,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                },
-            )
-            return result
-        except Exception as e:
-            logger.warning(f"rewrite failed ({e}), using original question")
-            return question
-
-
-class OllamaRewriter:
-    """Local Ollama query rewriter."""
-
-    def __init__(self, base_url: str, model: str) -> None:
-        self._base_url = base_url.rstrip("/")
-        self._model = model
-
-    def rewrite(self, question: str, history: str) -> str:
-        """Rewrite question using local Ollama."""
-        import httpx
-
-        try:
-            prompt = f"{REWRITE_PROMPT}\n\n{history}\n\nLatest question: {question}"
-            response = httpx.post(
-                f"{self._base_url}/api/generate",
-                json={"model": self._model, "prompt": prompt, "stream": False},
-                timeout=60.0,
-            )
-            response.raise_for_status()
-            result = response.json().get("response", "").strip()
-            if not result or len(result) > 500:
-                logger.warning("rewrite produced empty or oversized result, using original")
-                return question
-            return result
-        except Exception as e:
-            logger.warning(f"rewrite failed ({e}), using original question")
-            return question
-
-
 def build_rewriter(settings: Settings | None = None) -> Rewriter:
-    """Build rewriter based on configured provider and API key."""
+    """Real rewriter when LLM_TOKEN is set, pass-through fake otherwise."""
     settings = settings or get_settings()
 
-    provider = settings.chat_provider.lower()
-    api_key = settings.llm_api_key
-
-    # Ollama doesn't need an API key (local)
-    if provider == "ollama":
-        return OllamaRewriter(
-            base_url=settings.ollama_base_url, model=settings.chat_rewrite_model
-        )
-
-    # Hugging Face has its own key, falling back to LLM_API_KEY
-    if provider == "huggingface":
-        if not hf_api_key(settings):
-            logger.warning("HF_TOKEN unset — using FakeRewriter; no query rewriting")
-            return FakeRewriter()
-        return HFRewriter(
-            client=build_hf_sync_client(settings),
-            model=settings.chat_rewrite_model,
-            extra_headers=hf_extra_headers(settings),
-        )
-
-    # Fallback to FakeRewriter if no key is set for other providers
-    if not api_key:
-        logger.warning(
-            "LLM_API_KEY unset — using FakeRewriter; no query rewriting"
-        )
+    if not settings.llm_token:
+        logger.warning("LLM_TOKEN unset — using FakeRewriter; no query rewriting")
         return FakeRewriter()
 
-    # Anthropic
-    if provider == "anthropic":
-        try:
-            from anthropic import Anthropic
-
-            return AnthropicRewriter(
-                client=Anthropic(api_key=api_key),
-                model=settings.chat_rewrite_model,
-            )
-        except ImportError:
-            logger.error("anthropic package not installed; falling back to FakeRewriter")
-            return FakeRewriter()
-
-    # Mistral
-    elif provider == "mistral":
-        try:
-            from mistralai import Mistral  # type: ignore[import-not-found]
-
-            return MistralRewriter(
-                client=Mistral(api_key=api_key),
-                model=settings.chat_rewrite_model,
-            )
-        except ImportError:
-            logger.error("mistralai package not installed; falling back to FakeRewriter")
-            return FakeRewriter()
-
-    # Unknown provider
-    else:
-        logger.warning(f"Unknown provider '{provider}'; falling back to FakeRewriter")
-        return FakeRewriter()
+    return LLMRewriter(client=build_sync_client(settings), model=settings.chat_rewrite_model)
 
 
 async def rewrite(

@@ -1,13 +1,12 @@
-"""Hugging Face Inference Providers transport.
+"""LLM transport.
 
-Chat, rewrite and re-rank all speak the OpenAI chat-completions protocol against
-the HF router, so the only place that knows the router exists is this module.
-Embeddings take a different path — the router's `/v1` surface is chat-only.
+Chat, rewrite and re-rank all speak the OpenAI chat-completions protocol, so the
+only place that knows which gateway `LLM_BASE_URL` points at is this module.
+Embeddings take a different path entirely — see `app.ingestion.embeddings`.
 
-The response-cleaning helpers are not decoration: with `:cheapest` routing the
-answering model changes between calls, and open-weight models routinely wrap
-their output in a reasoning preamble or a markdown fence where Claude's
-structured-output API returned a parsed object.
+The response-cleaning helpers are not decoration: the open-weight models behind
+these endpoints routinely wrap their output in a reasoning preamble or a
+markdown fence instead of returning bare JSON.
 """
 
 import logging
@@ -20,8 +19,6 @@ from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
-HF_ROUTER_BASE_URL = "https://router.huggingface.co/v1"
-
 _REASONING_BLOCK = re.compile(
     r"<(think|thinking|reasoning)\b[^>]*>.*?</\1>", re.DOTALL | re.IGNORECASE
 )
@@ -31,31 +28,19 @@ _JSON_FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL | re.IGNORECAS
 _BILLING_STATUS = 402
 
 
-def hf_api_key(settings: Settings) -> str | None:
-    """HF_TOKEN, falling back to LLM_API_KEY so single-key deployments keep working."""
-    return settings.hf_token or settings.llm_api_key
+def build_sync_client(settings: Settings) -> OpenAI:
+    return OpenAI(api_key=settings.llm_token, base_url=settings.llm_base_url)
 
 
-def hf_extra_headers(settings: Settings) -> dict[str, str]:
-    """`X-HF-Bill-To` when an org is configured, so usage is billed to it."""
-    if settings.hf_bill_to:
-        return {"X-HF-Bill-To": settings.hf_bill_to}
-    return {}
-
-
-def build_hf_sync_client(settings: Settings) -> OpenAI:
-    return OpenAI(api_key=hf_api_key(settings), base_url=settings.hf_base_url)
-
-
-def build_hf_async_client(settings: Settings) -> AsyncOpenAI:
-    return AsyncOpenAI(api_key=hf_api_key(settings), base_url=settings.hf_base_url)
+def build_async_client(settings: Settings) -> AsyncOpenAI:
+    return AsyncOpenAI(api_key=settings.llm_token, base_url=settings.llm_base_url)
 
 
 def http_status(exc: BaseException) -> int | None:
-    """HTTP status off a provider SDK error, or None if it is not an HTTP failure.
+    """HTTP status off an SDK error, or None if it is not an HTTP failure.
 
-    The two SDKs disagree: `openai` puts `status_code` on the exception,
-    `huggingface_hub` wraps the `httpx` response instead.
+    `openai` puts `status_code` on the exception itself; `httpx`-based clients
+    wrap the response instead.
     """
     status = getattr(exc, "status_code", None)
     if status is None:

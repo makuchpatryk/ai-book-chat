@@ -20,33 +20,35 @@ def test_cors_origins_are_split_and_trimmed() -> None:
 
 
 def test_retrieval_defaults() -> None:
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
-    assert settings.rerank_provider == "huggingface"
-    assert settings.rerank_model == "openai/gpt-oss-120b:cheapest"
+    assert settings.rerank_model == "openai/gpt-oss-120b"
     assert settings.retrieval_top_k == 30
     assert settings.rerank_top_n == 8
     assert settings.rerank_min_score == 5
     assert settings.rerank_max_tokens == 2048
-    assert settings.ollama_base_url == "http://localhost:11434"
 
 
 def test_chat_defaults() -> None:
-    settings = Settings()
+    settings = Settings(_env_file=None)
 
-    assert settings.chat_provider == "huggingface"
-    assert settings.chat_model == "openai/gpt-oss-120b:cheapest"
-    assert settings.chat_rewrite_model == "openai/gpt-oss-20b:cheapest"
+    assert settings.chat_model == "openai/gpt-oss-120b"
+    assert settings.chat_rewrite_model == "openai/gpt-oss-20b"
     assert settings.chat_max_tokens == 2048
     assert settings.chat_history_turns == 6
     assert settings.chat_heartbeat_seconds == 15.0
 
 
-def test_huggingface_defaults() -> None:
-    settings = Settings()
+def test_llm_defaults() -> None:
+    settings = Settings(_env_file=None)
 
-    assert settings.hf_base_url == "https://router.huggingface.co/v1"
-    assert settings.hf_bill_to is None
-    assert settings.embedding_provider == "openai"
-    assert settings.embedding_model == "text-embedding-3-small"
-    assert settings.hf_embedding_model == "intfloat/multilingual-e5-large-instruct"
+    assert settings.llm_base_url == "https://api.groq.com/openai/v1"
+    assert settings.llm_token is None
+
+
+def test_embedding_defaults() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.ollama_base_url == "http://localhost:11434"
+    assert settings.ollama_embedding_model == "nomic-embed-text"
+    assert settings.embedding_dimensions == 768

@@ -1,26 +1,23 @@
-"""Shared Hugging Face router helpers."""
+"""Shared OpenAI-protocol transport helpers."""
 
 import pytest
 
 from app.config import Settings
-from app.llm.hf_client import (
+from app.llm.client import (
+    build_async_client,
+    build_sync_client,
     extract_json_object,
-    hf_api_key,
-    hf_extra_headers,
     is_billing_error,
     strip_reasoning,
 )
 
 
-def test_token_falls_back_to_the_shared_llm_key() -> None:
-    assert hf_api_key(Settings(hf_token="hf_x", llm_api_key="sk-y")) == "hf_x"
-    assert hf_api_key(Settings(hf_token=None, llm_api_key="sk-y")) == "sk-y"
-    assert hf_api_key(Settings(hf_token=None, llm_api_key=None)) is None
+def test_clients_are_pointed_at_the_configured_endpoint() -> None:
+    settings = Settings(llm_base_url="https://example.test/v1", llm_token="tok")
 
-
-def test_bill_to_header_is_only_sent_when_configured() -> None:
-    assert hf_extra_headers(Settings(hf_bill_to=None)) == {}
-    assert hf_extra_headers(Settings(hf_bill_to="my-org")) == {"X-HF-Bill-To": "my-org"}
+    for client in (build_sync_client(settings), build_async_client(settings)):
+        assert str(client.base_url).rstrip("/") == "https://example.test/v1"
+        assert client.api_key == "tok"
 
 
 def test_strip_reasoning_drops_think_blocks() -> None:

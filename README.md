@@ -1,35 +1,24 @@
 TODO
 
-## LLM providers
+## LLM configuration
 
-Chat, query rewriting and re-ranking share one provider setting each
-(`CHAT_PROVIDER`, `RERANK_PROVIDER`); embeddings have their own
-(`EMBEDDING_PROVIDER`). Every adapter degrades to an offline fake when its key
-is missing, so the test suite and a keyless checkout both work.
+Two backends, no provider switch:
 
-| Provider | Value | Key | Used for | Notes |
-| --- | --- | --- | --- | --- |
-| Hugging Face Inference Providers | `huggingface` (default) | `HF_TOKEN`, falling back to `LLM_API_KEY` | chat, rewrite, re-rank | OpenAI-compatible router at `https://router.huggingface.co/v1` |
-| Anthropic | `anthropic` | `LLM_API_KEY` | chat, rewrite, re-rank | Was the default; structured output for re-rank |
-| Mistral | `mistral` | `LLM_API_KEY` | chat, rewrite, re-rank | `mistralai` is not installed — falls back to the fakes |
-| Ollama | `ollama` | none | chat, rewrite, re-rank | Local, via `OLLAMA_BASE_URL` |
-| OpenAI | `openai` (default) | `OPENAI_API_KEY` | embeddings | `text-embedding-3-small`, 1536d |
-| Hugging Face | `huggingface` | `HF_TOKEN` | embeddings | Built but not enabled: needs a vector-column migration first |
+| Stage | Backend | Config | Fallback when unconfigured |
+| --- | --- | --- | --- |
+| chat, query rewriting, re-ranking | any OpenAI-compatible chat endpoint | `LLM_BASE_URL`, `LLM_TOKEN`, `CHAT_MODEL`, `CHAT_REWRITE_MODEL`, `RERANK_MODEL` | deterministic `Fake*` adapters |
+| embeddings | local Ollama | `OLLAMA_BASE_URL`, `OLLAMA_EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | none — Ollama must be reachable |
 
-On Hugging Face the suffix on the model id picks the routing policy:
-`:cheapest` (lowest price per output token), `:fastest` (the router default),
-`:preferred` (the account's provider order), or a pinned provider such as
-`:groq` / `:together`. Changing it is a `.env` edit.
+`LLM_BASE_URL` defaults to Groq's free tier. Any other OpenAI-protocol gateway
+works by changing that one URL plus the model ids — the HF router
+(`https://router.huggingface.co/v1`), OpenAI, or a local vLLM. There is no code
+path per vendor.
 
-Rolling back to the previous setup takes no code change:
+Embeddings are deliberately not switchable: `chunks.embedding` is a fixed-width
+`Vector(768)` column, so another model is a migration and a re-ingest, not a
+config edit. `build_embedder` refuses to start if `EMBEDDING_DIMENSIONS` and the
+column disagree, and the embedder re-checks the model's real width on its first
+batch.
 
-```
-CHAT_PROVIDER=anthropic
-CHAT_MODEL=claude-sonnet-5
-CHAT_REWRITE_MODEL=claude-haiku-4-5
-RERANK_PROVIDER=anthropic
-RERANK_MODEL=claude-haiku-4-5
-```
-
-Live provider checks are opt-in: `uv run pytest -m live` (needs `HF_TOKEN`
-and/or `OPENAI_API_KEY`); the default run is fully offline.
+Live checks are opt-in: `uv run pytest -m live` (needs `LLM_TOKEN` and/or a
+running Ollama); the default run is fully offline.

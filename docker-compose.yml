@@ -45,8 +45,6 @@ services:
         UPLOAD_DIR: /data/uploads
         LOG_LEVEL: ${LOG_LEVEL:-INFO}
         CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
-        OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-        ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
         # Ollama runs on the host, not in the compose network, so `localhost`
         # from `.env` would resolve to the container itself.
         #

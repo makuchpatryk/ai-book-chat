@@ -138,14 +138,13 @@ async def answer(
                 answer_text += event.text
                 yield TokenEvent(text=event.text)
             elif isinstance(event, GenerationDone):
-                # "max_tokens" is Anthropic's vocabulary, "length" is the
-                # OpenAI-compatible one the HF router speaks.
+                # "length" is the OpenAI-protocol finish reason for a truncated
+                # completion; "max_tokens" is what some gateways send instead.
                 truncated = event.stop_reason in ("max_tokens", "length")
                 logger.info(
                     "generation usage",
                     extra={
                         "phase": "generate",
-                        "provider": settings.chat_provider,
                         "model": settings.chat_model,
                         "input_tokens": event.input_tokens,
                         "output_tokens": event.output_tokens,

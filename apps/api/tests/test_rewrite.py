@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from typing import Any
 
-from app.chat.rewrite import FakeRewriter, HFRewriter, build_rewriter
+from app.chat.rewrite import FakeRewriter, LLMRewriter, build_rewriter
 from app.config import Settings
 
 
@@ -23,42 +23,42 @@ class _FakeCompletions:
         )
 
 
-def _rewriter(content: str | None, error: Exception | None = None) -> HFRewriter:
+def _rewriter(content: str | None, error: Exception | None = None) -> LLMRewriter:
     completions = _FakeCompletions(content, error)
     client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
-    return HFRewriter(client, "openai/gpt-oss-20b")
+    return LLMRewriter(client, "openai/gpt-oss-20b")
 
 
-def test_hf_rewriter_returns_the_standalone_question() -> None:
+def test_llm_rewriter_returns_the_standalone_question() -> None:
     assert _rewriter("What is the author's view on X?").rewrite(
         "What about X?", "User: tell me about the book"
     ) == "What is the author's view on X?"
 
 
-def test_hf_rewriter_strips_a_reasoning_preamble() -> None:
+def test_llm_rewriter_strips_a_reasoning_preamble() -> None:
     rewriter = _rewriter("<think>they mean the book</think>What does the book say about X?")
 
     assert rewriter.rewrite("what about X?", "history") == "What does the book say about X?"
 
 
-def test_hf_rewriter_falls_back_to_the_original_on_empty_output() -> None:
+def test_llm_rewriter_falls_back_to_the_original_on_empty_output() -> None:
     assert _rewriter("").rewrite("what about X?", "history") == "what about X?"
     assert _rewriter(None).rewrite("what about X?", "history") == "what about X?"
 
 
-def test_hf_rewriter_falls_back_to_the_original_on_oversized_output() -> None:
+def test_llm_rewriter_falls_back_to_the_original_on_oversized_output() -> None:
     assert _rewriter("x" * 501).rewrite("what about X?", "history") == "what about X?"
 
 
-def test_hf_rewriter_never_raises() -> None:
-    rewriter = _rewriter(None, error=RuntimeError("router is down"))
+def test_llm_rewriter_never_raises() -> None:
+    rewriter = _rewriter(None, error=RuntimeError("endpoint is down"))
 
     assert rewriter.rewrite("what about X?", "history") == "what about X?"
 
 
-def test_build_rewriter_uses_huggingface_by_default_with_a_token() -> None:
-    assert isinstance(build_rewriter(Settings(hf_token="hf_test")), HFRewriter)
+def test_build_rewriter_returns_the_real_adapter_with_a_token() -> None:
+    assert isinstance(build_rewriter(Settings(llm_token="tok")), LLMRewriter)
 
 
 def test_build_rewriter_falls_back_to_the_fake_without_a_token() -> None:
-    assert isinstance(build_rewriter(Settings(hf_token=None, llm_api_key=None)), FakeRewriter)
+    assert isinstance(build_rewriter(Settings(llm_token=None)), FakeRewriter)

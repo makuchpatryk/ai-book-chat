@@ -10,7 +10,7 @@ from app.chat.generate import (
     ChatMessage,
     FakeGenerator,
     GenerationDone,
-    HFGenerator,
+    LLMGenerator,
     TextDelta,
     build_generator,
 )
@@ -64,14 +64,14 @@ class _FakeClient:
         self.chat = SimpleNamespace(completions=self.completions)
 
 
-async def _collect(generator: HFGenerator, system: str = "sys") -> list[Any]:
+async def _collect(generator: LLMGenerator, system: str = "sys") -> list[Any]:
     return [
         event
         async for event in generator.stream(system, [ChatMessage(role="user", content="hi")])
     ]
 
 
-async def test_hf_generator_streams_deltas_then_one_done() -> None:
+async def test_llm_generator_streams_deltas_then_one_done() -> None:
     client = _FakeClient(
         [
             _chunk(content="Hello"),
@@ -80,7 +80,7 @@ async def test_hf_generator_streams_deltas_then_one_done() -> None:
             _usage_only_chunk(1200, 34),
         ]
     )
-    events = await _collect(HFGenerator(client, "openai/gpt-oss-120b", 2048))
+    events = await _collect(LLMGenerator(client, "openai/gpt-oss-120b", 2048))
 
     assert [e.text for e in events if isinstance(e, TextDelta)] == ["Hello", " world"]
     done = [e for e in events if isinstance(e, GenerationDone)]
@@ -89,29 +89,28 @@ async def test_hf_generator_streams_deltas_then_one_done() -> None:
     assert done[0].estimated is False
 
 
-async def test_hf_generator_sends_the_system_prompt_as_a_message_and_asks_for_usage() -> None:
+async def test_llm_generator_sends_the_system_prompt_as_a_message_and_asks_for_usage() -> None:
     client = _FakeClient([_chunk(content="hi", finish_reason="stop"), _usage_only_chunk(1, 1)])
-    await _collect(HFGenerator(client, "m", 2048, extra_headers={"X-HF-Bill-To": "org"}))
+    await _collect(LLMGenerator(client, "m", 2048))
 
     kwargs = client.completions.kwargs
     assert kwargs["messages"][0] == {"role": "system", "content": "sys"}
     assert kwargs["messages"][1] == {"role": "user", "content": "hi"}
     assert kwargs["stream_options"] == {"include_usage": True}
-    assert kwargs["extra_headers"] == {"X-HF-Bill-To": "org"}
 
 
-async def test_hf_generator_propagates_a_length_stop() -> None:
+async def test_llm_generator_propagates_a_length_stop() -> None:
     client = _FakeClient(
         [_chunk(content="cut off", finish_reason="length"), _usage_only_chunk(5, 6)]
     )
-    events = await _collect(HFGenerator(client, "m", 2048))
+    events = await _collect(LLMGenerator(client, "m", 2048))
 
     assert events[-1].stop_reason == "length"
 
 
-async def test_hf_generator_estimates_tokens_when_usage_is_absent() -> None:
+async def test_llm_generator_estimates_tokens_when_usage_is_absent() -> None:
     client = _FakeClient([_chunk(content="some words here", finish_reason="stop")])
-    events = await _collect(HFGenerator(client, "m", 2048))
+    events = await _collect(LLMGenerator(client, "m", 2048))
 
     done = events[-1]
     assert isinstance(done, GenerationDone)
@@ -119,7 +118,7 @@ async def test_hf_generator_estimates_tokens_when_usage_is_absent() -> None:
     assert done.input_tokens and done.output_tokens
 
 
-async def test_hf_generator_ignores_reasoning_deltas() -> None:
+async def test_llm_generator_ignores_reasoning_deltas() -> None:
     client = _FakeClient(
         [
             _chunk(reasoning="the user asked about X"),
@@ -128,30 +127,24 @@ async def test_hf_generator_ignores_reasoning_deltas() -> None:
             _usage_only_chunk(3, 4),
         ]
     )
-    events = await _collect(HFGenerator(client, "m", 2048))
+    events = await _collect(LLMGenerator(client, "m", 2048))
 
     assert [e.text for e in events if isinstance(e, TextDelta)] == ["answer"]
 
 
-async def test_hf_generator_reports_exhausted_credits_clearly() -> None:
+async def test_llm_generator_reports_exhausted_credits_clearly() -> None:
     class _PaymentRequired(Exception):
         status_code = 402
 
     client = _FakeClient([], error=_PaymentRequired("insufficient credits"))
 
     with pytest.raises(RuntimeError, match="402"):
-        await _collect(HFGenerator(client, "m", 2048))
+        await _collect(LLMGenerator(client, "m", 2048))
 
 
-def test_build_generator_uses_huggingface_by_default_with_a_token() -> None:
-    generator = build_generator(Settings(hf_token="hf_test"))
-
-    assert isinstance(generator, HFGenerator)
+def test_build_generator_returns_the_real_adapter_with_a_token() -> None:
+    assert isinstance(build_generator(Settings(llm_token="tok")), LLMGenerator)
 
 
 def test_build_generator_falls_back_to_the_fake_without_a_token() -> None:
-    assert isinstance(build_generator(Settings(hf_token=None, llm_api_key=None)), FakeGenerator)
-
-
-def test_build_generator_accepts_the_shared_llm_key() -> None:
-    assert isinstance(build_generator(Settings(llm_api_key="sk-test")), HFGenerator)
+    assert isinstance(build_generator(Settings(llm_token=None)), FakeGenerator)
