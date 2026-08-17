@@ -148,6 +148,23 @@ async def test_delete_removes_document_and_file(
     assert not Path(file_path).exists()
 
 
+async def test_delete_removes_the_documents_conversations(
+    client: AsyncClient, sync_session: Session, enqueued: list[str], tmp_path: Path
+) -> None:
+    path = factories.book_pdf(tmp_path / "book.pdf")
+    upload = await client.post("/documents", files=_upload(path))
+    document_id = UUID(upload.json()["id"])
+    process_document(sync_session, document_id, FakeEmbedder())
+
+    created = await client.post(f"/documents/{document_id}/conversations")
+    conversation_id = created.json()["id"]
+
+    assert (await client.delete(f"/documents/{document_id}")).status_code == 204
+
+    orphan = await client.get(f"/conversations/{conversation_id}/messages")
+    assert orphan.status_code == 404
+
+
 async def test_delete_404s_for_unknown_id(
     client: AsyncClient,
 ) -> None:

@@ -100,8 +100,12 @@ def _read_outline(document: Any, page_count: int) -> list[OutlineEntry]:
     return entries
 
 
-def extract_pdf(path: Path) -> ExtractedPdf:
+def extract_pdf(path: Path, fallback_title: str | None = None) -> ExtractedPdf:
     """Parse a PDF into pages, line metrics and its outline.
+
+    `fallback_title` names the document when the PDF carries no metadata title;
+    callers pass the original upload name, since `path` is the stored
+    `{uuid}.pdf` and its stem would read as a random id.
 
     Raises `CorruptPdfError` if the file cannot be read as a PDF, and
     `EmptyDocumentError` if it has no usable text layer (a scan).
@@ -125,7 +129,7 @@ def extract_pdf(path: Path) -> ExtractedPdf:
             lines.extend(page_lines)
 
         metadata_title = (document.metadata or {}).get("title") or ""
-        title = metadata_title.strip() or path.stem
+        title = metadata_title.strip() or (fallback_title or "").strip() or path.stem
         outline = _read_outline(document, page_count)
     finally:
         document.close()

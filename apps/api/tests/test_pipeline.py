@@ -62,7 +62,7 @@ def test_happy_path_reaches_ready(sync_session: Session, tmp_path: Path) -> None
     assert document.status is DocumentStatus.READY
     assert document.page_count == 6
     assert document.chunking_strategy == "outline"
-    assert document.title == "The Test Book"
+    assert document.title == "book"
     assert document.error_message is None
 
     sections = _sections(sync_session, document)
@@ -73,7 +73,7 @@ def test_happy_path_reaches_ready(sync_session: Session, tmp_path: Path) -> None
     assert [chunk.order_index for chunk in chunks] == list(range(len(chunks)))
     section_ids = {section.id for section in sections}
     for chunk in chunks:
-        assert len(chunk.embedding) == 1536
+        assert len(chunk.embedding) == 768
         assert chunk.section_id in section_ids
         assert 1 <= chunk.page_start <= chunk.page_end <= 6
 
@@ -120,6 +120,27 @@ def test_scanned_pdf_fails_with_a_readable_reason(sync_session: Session, tmp_pat
     assert "scanned" in (document.error_message or "")
     assert _chunks(sync_session, document) == []
     assert _sections(sync_session, document) == []
+
+
+def test_title_comes_from_the_upload_name_not_the_stored_path(
+    sync_session: Session, tmp_path: Path
+) -> None:
+    """Uploads are stored as `{uuid}.pdf`; that id must never become the title."""
+    stored = factories.book_pdf(tmp_path / f"{uuid4()}.pdf")
+    document = Document(
+        filename="Deep Learning.pdf",
+        title="Deep Learning",
+        file_path=str(stored),
+        content_hash=hashlib.sha256(stored.read_bytes()).hexdigest(),
+        status=DocumentStatus.PENDING,
+    )
+    sync_session.add(document)
+    sync_session.commit()
+
+    assert process_document(sync_session, document.id, FakeEmbedder()) == "READY"
+
+    sync_session.refresh(document)
+    assert document.title == "Deep Learning"
 
 
 def test_unknown_document_id_raises(sync_session: Session) -> None:

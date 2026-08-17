@@ -48,7 +48,8 @@ def process_document(session: Session, document_id: uuid.UUID, embedder: Embedde
         _set_status(session, document, DocumentStatus.PARSING)
 
         parse_started = time.monotonic()
-        extracted = extract_pdf(Path(document.file_path))
+        upload_name = Path(document.filename).stem
+        extracted = extract_pdf(Path(document.file_path), fallback_title=upload_name)
         sections, strategy = detect_sections(extracted)
         parse_seconds = time.monotonic() - parse_started
 
@@ -88,7 +89,9 @@ def process_document(session: Session, document_id: uuid.UUID, embedder: Embedde
 
         _persist(session, document, sections, chunks, vectors)
 
-        document.title = extracted.title
+        # The uploaded file name is what the user recognises; PDF metadata titles
+        # are often a leftover from whatever produced the file.
+        document.title = upload_name
         document.page_count = extracted.page_count
         document.chunking_strategy = strategy.value
         document.status = DocumentStatus.READY
