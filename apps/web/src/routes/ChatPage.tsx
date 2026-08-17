@@ -14,7 +14,7 @@ export function ChatPage() {
 
   const { data: messages, isLoading } = useMessages(conversationId || "");
   const { data: document } = useDocument(documentId || "");
-  const { liveText, liveSources, isStreaming, error, startStream, abort } = useChatStream(
+  const { liveText, isStreaming, error, startStream, abort } = useChatStream(
     conversationId || ""
   );
 
@@ -45,7 +45,6 @@ export function ChatPage() {
             messages={messages || []}
             streaming={isStreaming}
             liveText={liveText}
-            liveSources={liveSources}
           />
           {error && (
             <div className="px-4 py-2 bg-destructive/10 text-destructive text-sm border-t border-border">

@@ -7,21 +7,12 @@ interface MessageListProps {
   messages: Message[];
   streaming: boolean;
   liveText: string;
-  liveSources: Array<{
-    chunk_id: string;
-    page_start: number;
-    page_end: number;
-    score: number | null;
-    section_title: string | null;
-    snippet: string;
-  }>;
 }
 
 export function MessageList({
   messages,
   streaming,
   liveText,
-  liveSources,
 }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,7 +43,7 @@ export function MessageList({
             <MessageBubble key={msg.id} message={msg} />
           ))}
           {streaming && (
-            <StreamingMessage text={liveText} sources={liveSources} />
+            <StreamingMessage text={liveText} />
           )}
           <div ref={endRef} />
         </>

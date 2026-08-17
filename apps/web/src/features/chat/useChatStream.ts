@@ -1,12 +1,10 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { streamMessage } from "@/api/chat";
-import type { Source } from "@/types";
 
 interface ChatStreamState {
   status: "idle" | "streaming" | "error";
   liveText: string;
-  liveSources: Source[];
   error: string | null;
 }
 
@@ -14,7 +12,6 @@ export function useChatStream(conversationId: string) {
   const [state, setState] = useState<ChatStreamState>({
     status: "idle",
     liveText: "",
-    liveSources: [],
     error: null,
   });
 
@@ -37,25 +34,13 @@ export function useChatStream(conversationId: string) {
     async (content: string) => {
       if (state.status === "streaming") return;
 
-      setState({ status: "streaming", liveText: "", liveSources: [], error: null });
+      setState({ status: "streaming", liveText: "", error: null });
       abortControllerRef.current = new AbortController();
       textBufferRef.current = "";
 
       try {
         for await (const event of streamMessage(conversationId, content, abortControllerRef.current.signal)) {
-          if (event.type === "sources") {
-            setState((prev) => ({
-              ...prev,
-              liveSources: event.results.map((r) => ({
-                chunk_id: r.chunk_id,
-                page_start: r.page_start,
-                page_end: r.page_end,
-                score: r.score,
-                section_title: r.section_title,
-                snippet: r.snippet,
-              })),
-            }));
-          } else if (event.type === "token") {
+          if (event.type === "token") {
             textBufferRef.current += event.text;
 
             if (timerRef.current) clearTimeout(timerRef.current);
