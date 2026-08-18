@@ -1,7 +1,7 @@
 """Alembic environment.
 
 Runs against the *sync* engine (psycopg) — the standard, simplest setup — even
-though the API itself uses asyncpg. Both share `app.db.base.Base`.
+though the API itself uses asyncpg. Both share `app.infrastructure.db.base.Base`.
 """
 
 from logging.config import fileConfig
@@ -10,8 +10,8 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.config import get_settings
-from app.db import models  # noqa: F401  — side effect: registers every model on Base
-from app.db.base import Base
+from app.infrastructure.db import models  # noqa: F401  — side effect: registers every model on Base
+from app.infrastructure.db.base import Base
 
 config = context.config
 
