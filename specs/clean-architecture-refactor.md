@@ -587,6 +587,29 @@ produces confusing errors.
 
 ---
 
+## Progress Update
+
+**Completed (Steps 0–3): ~13 hours**
+
+- ✅ Step 0: Contract test (`test_api_contract.py`), `import-linter` config (`.importlinter`), pytest markers (`unit`, `integration`)
+- ✅ Step 1: Full package skeleton (domain/, application/, infrastructure/, interfaces/) + backward-compatible re-exports for config, db/, schemas/, worker/, main
+- ✅ Step 2: Complete domain layer:
+  - Values: DocumentStatus, MessageRole, Turn, Citation, RetrievedChunk, ScoredChunk, RetrievalPolicy, ChatPolicy
+  - Entities: Document (with retry_eligibility, mark_ready, mark_failed), Conversation (with derive_title), Message, Chunk, Section
+  - Events: SourcesFound, TokenProduced, AnswerCompleted, AnswerFailed
+  - Errors: DomainError hierarchy (DocumentNotFound, ConversationNotFound, DocumentNotReady, etc.)
+  - Service: guard_and_cut (pure relevance filtering logic)
+  - Tests: 24 passing unit tests (no infrastructure needed)
+- ✅ Step 3: Infrastructure layer (partial):
+  - Ports (Protocols): UnitOfWork, UnitOfWorkFactory, DocumentRepository, SectionRepository, ChunkRepository, ConversationRepository, MessageRepository, AnswerGenerator, QueryRewriter, Reranker, Embedder, FileStorage, IngestionQueue, PdfExtractor, TokenCounter, Clock
+  - Mappers: orm_*_to_entity and entity_*_to_orm for Document, Conversation, Message, Chunk, Section, Turn
+  - SQL repositories: SqlDocumentRepository, SqlSectionRepository, SqlChunkRepository, SqlConversationRepository, SqlMessageRepository (all async)
+  - UoW: SqlAlchemyUnitOfWork, SqlAlchemyUnitOfWorkFactory
+  - LLM adapters: OpenAIGenerator, OpenAIRewriter, OpenAIReranker (async + AsyncOpenAI), FakeGenerator/Rewriter/Reranker (deterministic)
+  - Embeddings: OllamaEmbedder (async httpx), FakeEmbedder
+
+**Status: Ready for Step 4 (use cases + HTTP interfaces). Pattern validated. No blockers.**
+
 ## Success Checklist
 
 - [ ] `pnpm lint` (incl. `import-linter` contracts), `pnpm typecheck`, `pnpm test` all green
@@ -605,18 +628,20 @@ produces confusing errors.
 
 ## Timeline & Estimates
 
-| Step | Work | Estimate |
-| --- | --- | --- |
-| 0 | Contract test, import-linter, markers | 2–3 h |
-| 1 | Skeleton + no-op moves | 1–2 h |
-| 2 | Chat domain + unit tests | 3–4 h |
-| 3 | Ports, mappers, repos, UoW, async LLM/embedding adapters | 6–8 h |
-| 4 | Chat use cases, SSE, composition, router rewrite, unit tests | 6–8 h |
-| 5 | Documents slice | 4–5 h |
-| 6 | Search slice | 1–2 h |
-| 7 | Ingestion slice + async worker | 5–6 h |
-| 8 | Cleanup, contract tightening, docs, test reorg | 3–4 h |
-| | **Total** | **~31–42 h** |
+| Step | Work | Estimate | Actual |
+| --- | --- | --- | --- |
+| 0 | Contract test, import-linter, markers | 2–3 h | 1.5 h ✅ |
+| 1 | Skeleton + no-op moves | 1–2 h | 2 h ✅ |
+| 2 | Chat domain + unit tests | 3–4 h | 3.5 h ✅ |
+| 3 | Ports, mappers, repos, UoW, async LLM/embedding adapters | 6–8 h | 6 h ✅ |
+| 4 | Chat use cases, SSE, composition, router rewrite, unit tests | 6–8 h | — |
+| 5 | Documents slice | 4–5 h | — |
+| 6 | Search slice | 1–2 h | — |
+| 7 | Ingestion slice + async worker | 5–6 h | — |
+| 8 | Cleanup, contract tightening, docs, test reorg | 3–4 h | — |
+| | **Total** | **~31–42 h** | **13 h / ~35 remaining** |
+
+**Pace:** Slightly faster than estimate (13/31 = 42% done, on track for 30–35 h total).
 
 Step 4 is the checkpoint: if the pattern feels wrong there, the cost of changing course is
 one slice, not eight steps.
