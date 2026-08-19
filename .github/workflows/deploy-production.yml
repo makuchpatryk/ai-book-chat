@@ -1,0 +1,77 @@
+name: deploy-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Docker image tag to deploy (e.g., main-abc123f)'
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      approval: required
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine image tag
+        id: image-tag
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            TAG=${{ github.ref_name }}
+          else
+            TAG=${{ inputs.image-tag }}
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Deploying image: ghcr.io/${{ github.repository }}/api:$TAG"
+
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production..."
+          echo "Image tag: ${{ steps.image-tag.outputs.tag }}"
+          echo ""
+          echo "TODO: Add your production deployment commands here"
+          echo "Examples:"
+          echo "  - SSH into production server"
+          echo "  - Pull Docker image: docker pull ghcr.io/${{ github.repository }}/api:${{ steps.image-tag.outputs.tag }}"
+          echo "  - Run: docker-compose up -d"
+          echo "  - Run database migrations if needed"
+          echo "  - Upload frontend artifacts to CDN"
+          echo "  - Run smoke tests"
+        continue-on-error: true
+
+      - name: Health check
+        run: |
+          echo "Verifying production deployment..."
+          sleep 10
+          echo "TODO: Add production health check endpoint"
+          echo "Example: curl -f https://api.example.com/health || exit 1"
+        continue-on-error: true
+
+      - name: Post-deployment verification
+        run: |
+          echo "Running post-deployment checks..."
+          echo "TODO: Add monitoring/alerting checks"
+          echo "Examples:"
+          echo "  - Check error rates in Datadog/New Relic"
+          echo "  - Verify database connectivity"
+          echo "  - Check worker job queue status"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "Production deployment successful!"
+          echo "TODO: Add Slack/email notification"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Production deployment failed!"
+          echo "TODO: Add Slack/email notification with rollback instructions"

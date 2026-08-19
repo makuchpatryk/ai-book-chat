@@ -1,0 +1,80 @@
+name: deploy-staging
+
+on:
+  workflow_run:
+    workflows:
+      - build-backend
+      - build-frontend
+    branches:
+      - main
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  check-builds:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-build-status: ${{ steps.backend-check.outputs.result }}
+      frontend-build-status: ${{ steps.frontend-check.outputs.result }}
+    steps:
+      - name: Check backend build
+        id: backend-check
+        run: echo "result=completed" >> $GITHUB_OUTPUT
+
+      - name: Check frontend build
+        id: frontend-check
+        run: echo "result=completed" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: check-builds
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download image metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: image-metadata
+          run-id: ${{ github.event.workflow_run.id }}
+        if: github.event_name == 'workflow_run'
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend-dist
+          run-id: ${{ github.event.workflow_run.id }}
+        if: github.event_name == 'workflow_run'
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging..."
+          echo "Backend image tag: $(cat image-tags.txt 2>/dev/null || echo 'latest')"
+          echo "Frontend artifacts ready at: ./frontend-dist"
+          echo ""
+          echo "TODO: Add your deployment commands here"
+          echo "Examples:"
+          echo "  - SSH into staging server and pull Docker image"
+          echo "  - Run: docker-compose up -d"
+          echo "  - Upload frontend artifacts to CDN or backend"
+          echo "  - Run smoke tests"
+        continue-on-error: true
+
+      - name: Health check
+        run: |
+          echo "Waiting for deployment..."
+          sleep 5
+          echo "TODO: Add health check endpoint"
+          echo "Example: curl -f http://staging.example.com/health || exit 1"
+        continue-on-error: true
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Deployment to staging failed"
+          echo "TODO: Add Slack/email notification"

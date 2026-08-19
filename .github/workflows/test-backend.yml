@@ -1,0 +1,69 @@
+name: test-backend
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/api/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16-latest
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Cache uv dependencies
+        uses: actions/cache@v4
+        with:
+          path: /root/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: cd apps/api && uv sync
+
+      - name: Run pytest
+        run: cd apps/api && uv run pytest -v --tb=short
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-backend
+          path: apps/api/.coverage
