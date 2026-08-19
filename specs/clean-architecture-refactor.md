@@ -631,7 +631,17 @@ produces confusing errors.
   - Thin router: ~40 lines
   - RetrieveContext enhanced to expose scored_chunks for full search metadata (distance, full content)
 
-**Status: Ready for Step 7 (ingestion/worker). 23.5h elapsed.**
+**Completed (Step 7 major): ~7 hours**
+
+- ✅ Step 7: Ingestion slice and async worker:
+  - Moved pure services: sections.py, chunking.py → domain/services/ 
+  - PDF extractor adapter: PyMuPdfExtractor (wraps extract_pdf behind PdfExtractor port)
+  - Tokenizer adapter: TiktokenCounter (tiktoken encode/decode/count behind TokenCounter port)
+  - IngestDocument use case: state machine (PENDING → PARSING → EMBEDDING → READY/FAILED) with transactional checkpoints
+  - Worker composition: per-task async engine (NullPool to avoid event-loop issues), UoW factory
+  - Worker tasks: async via asyncio.run (replaces sync_session)
+
+**Status: Step 7 ~95% complete. Step 8 (cleanup/tightening) remaining. ~30.5h elapsed, ~1-2h to completion.**
 
 ## Success Checklist
 
