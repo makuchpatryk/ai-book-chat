@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
-import { MarkdownAnswer } from "@/features/chat/MarkdownAnswer";
+import { MarkdownAnswer } from "./MarkdownAnswer";
 import type { Message } from "@/types";
 
 export function MessageBubble({ message }: { message: Message }) {

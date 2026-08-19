@@ -1,10 +1,6 @@
 import { useParams } from "react-router";
 import { Card } from "@/components/ui/card";
-import { MessageList } from "@/features/chat/MessageList";
-import { MessageInput } from "@/features/chat/MessageInput";
-import { useMessages } from "@/features/chat/useMessages";
-import { useChatStream } from "@/features/chat/useChatStream";
-import { useDocument } from "@/features/chat/useDocument";
+import { MessageList, MessageInput, useMessages, useChatStream, useDocument } from "@/features/chat";
 
 export function ChatPage() {
   const { conversationId, documentId } = useParams<{

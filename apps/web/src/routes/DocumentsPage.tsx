@@ -1,7 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DocumentList } from "@/features/documents/DocumentList";
-import { UploadDropzone } from "@/features/documents/UploadDropzone";
-import { useDocuments } from "@/features/documents/useDocuments";
+import { DocumentList, UploadDropzone, useDocuments } from "@/features/documents";
 
 export function DocumentsPage() {
   const { data: documents } = useDocuments();

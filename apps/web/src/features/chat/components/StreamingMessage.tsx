@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { MarkdownAnswer } from "@/features/chat/MarkdownAnswer";
+import { MarkdownAnswer } from "./MarkdownAnswer";
 
 function TypingDots() {
   return (

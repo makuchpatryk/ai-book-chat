@@ -5,8 +5,8 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared";
-import { useCreateConversation } from "@/features/chat/useCreateConversation";
-import { useDeleteConversation } from "@/features/chat/useDeleteConversation";
+import { useCreateConversation } from "../hooks/useCreateConversation";
+import { useDeleteConversation } from "../hooks/useDeleteConversation";
 import type { Conversation } from "@/types";
 
 export function ConversationList({

@@ -2,10 +2,8 @@ import { HeartPulse } from "lucide-react";
 import { NavLink, Outlet, useParams } from "react-router";
 
 import { cn } from "@/lib/utils";
-import { ConversationList } from "@/features/chat/ConversationList";
-import { DocumentList } from "@/features/documents/DocumentList";
-import { useDocuments } from "@/features/documents/useDocuments";
-import { useConversations } from "@/features/chat/useConversations";
+import { ConversationList, useConversations } from "@/features/chat";
+import { DocumentList, useDocuments } from "@/features/documents";
 import { ErrorBoundary } from "@/components/shared";
 import { Toaster } from "@/components/ui/sonner";
 

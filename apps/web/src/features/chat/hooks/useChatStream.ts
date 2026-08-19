@@ -1,13 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { streamMessage } from "@/api/chat/api";
-
-interface ChatStreamState {
-  status: "idle" | "streaming" | "error";
-  liveText: string;
-  error: string | null;
-  pendingUserText: string | null;
-}
+import type { ChatStreamState } from "../types";
 
 export function useChatStream(conversationId: string) {
   const [state, setState] = useState<ChatStreamState>({

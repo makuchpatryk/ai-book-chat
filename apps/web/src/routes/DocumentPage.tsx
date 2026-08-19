@@ -1,8 +1,6 @@
 import { useParams } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ConversationList } from "@/features/chat/ConversationList";
-import { useDocument } from "@/features/chat/useDocument";
-import { useConversations } from "@/features/chat/useConversations";
+import { ConversationList, useDocument, useConversations } from "@/features/chat";
 
 export function DocumentPage() {
   const { documentId } = useParams<{ documentId: string }>();

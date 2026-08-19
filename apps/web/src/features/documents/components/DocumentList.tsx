@@ -1,4 +1,4 @@
-import { DocumentListItem } from "@/features/documents/DocumentListItem";
+import { DocumentListItem } from "./DocumentListItem";
 import type { Document } from "@/types";
 
 export function DocumentList({ documents }: { documents: Document[] | undefined }) {
