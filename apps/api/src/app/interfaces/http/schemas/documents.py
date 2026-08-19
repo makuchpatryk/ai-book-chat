@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.db.models import DocumentStatus
+from app.infrastructure.db.models import DocumentStatus
 
 
 class DocumentRead(BaseModel):

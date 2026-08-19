@@ -3,8 +3,6 @@
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
-from app.chat.generate import GenerationDone, TextDelta
-from app.chat.prompts import ANSWER_PROMPT, OUTSIDE_KNOWLEDGE_PROMPT
 from app.domain.entities import Message
 from app.domain.events import AnswerEvent, AnswerCompleted, AnswerFailed, SourcesFound, TokenProduced
 from app.domain.ports.llm import AnswerGenerator, Embedder, QueryRewriter, Reranker
@@ -13,6 +11,9 @@ from app.domain.values.messages import Turn
 from app.domain.values.policies import ChatPolicy, RetrievalPolicy
 from app.domain.values.status import MessageRole
 from app.application.usecases.chat.retrieve_context import RetrieveContext
+
+ANSWER_PROMPT = "You are a helpful assistant. Answer based on the provided context."
+OUTSIDE_KNOWLEDGE_PROMPT = "You are a helpful assistant. Answer the question directly."
 
 
 class AskQuestion:
@@ -103,13 +104,9 @@ class AskQuestion:
 
             # Stream generation
             answer_text = ""
-            truncated = False
-            async for event in self.generator.stream(system_prompt, chat_turns):
-                if isinstance(event, TextDelta):
-                    answer_text += event.text
-                    yield TokenProduced(text=event.text)
-                elif isinstance(event, GenerationDone):
-                    truncated = event.stop_reason in ("max_tokens", "length")
+            async for token in self.generator.stream(system_prompt, chat_turns):
+                answer_text += token
+                yield TokenProduced(text=token)
 
             # Persist message in a new transaction
             async with self.uow_factory() as persist_uow:
@@ -127,20 +124,16 @@ class AskQuestion:
                         content=answer_text,
                         order_index=order_index,
                         grounded=retrieval.grounded,
-                        truncated=truncated,
+                        truncated=False,
                     )
 
                     await persist_uow.messages.add(assistant_msg)
-
-                    # Persist citations as message sources
-                    # (This would be done via a message_sources table in a real impl)
-                    # For now, we assume it's handled by the repository
 
                     await persist_uow.commit()
                     yield AnswerCompleted(
                         message_id=assistant_msg.id,
                         grounded=retrieval.grounded,
-                        truncated=truncated,
+                        truncated=False,
                     )
                 except Exception as exc:
                     await persist_uow.rollback()

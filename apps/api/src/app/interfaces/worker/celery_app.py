@@ -9,9 +9,8 @@ from typing import Any
 from celery import Celery
 from celery.signals import worker_process_init
 
-from app.config import get_settings
-from app.infrastructure.db.sync_session import sync_engine
-from app.logging import setup_logging
+from app.infrastructure.config.settings import get_settings
+from app.infrastructure.logging import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -44,5 +43,4 @@ celery_app.autodiscover_tasks(["app.interfaces.worker"])
 def init_worker_process(**_: Any) -> None:
     """Each forked child gets its own connections — never share a pool across forks."""
     setup_logging(settings.log_level)
-    sync_engine.dispose()
     logger.info("celery worker process ready")

@@ -14,11 +14,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.config import Settings, get_settings
-from app.db.models import Document
-from app.db.session import AsyncSessionLocal, engine
-from app.db.sync_session import SyncSessionLocal
-from app.main import create_app
+from app.infrastructure.config.settings import Settings, get_settings
+from app.infrastructure.db.models import Document
+from app.infrastructure.db.session import AsyncSessionLocal, engine
+from app.interfaces.http.app import create_app
 
 
 @pytest.fixture
@@ -45,39 +44,12 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 
 @pytest.fixture
-def sync_session() -> Iterator[Session]:
-    """A worker-style session over the dev database.
-
-    Documents created while the fixture is active are deleted afterwards (the
-    cascades take sections and chunks with them), so a real ingested book in the
-    dev database survives a test run untouched.
-    """
-    session = SyncSessionLocal()
-    try:
-        before = set(session.scalars(sa.select(Document.id)))
-    except sa.exc.OperationalError:
-        session.close()
-        pytest.skip("postgres unreachable")
-
-    try:
-        yield session
-    finally:
-        session.rollback()
-        for document_id in set(session.scalars(sa.select(Document.id))) - before:
-            session.execute(sa.delete(Document).where(Document.id == document_id))
-        session.commit()
-        session.close()
-
-
-@pytest.fixture
 async def app_session() -> AsyncIterator[AsyncSession]:
     """Async database session for async tests (e.g., vector search).
 
-    Cleans up after itself the same way `sync_session` does: documents that
-    appeared while the fixture was active are deleted (cascades take sections,
-    chunks and conversations with them). Without this a test run leaves rows
-    behind that collide with `documents.content_hash` on the next run, and a
-    real ingested book in the dev database would accumulate junk beside it.
+    Cleans up after itself: documents that appeared while the fixture was active
+    are deleted (cascades take sections, chunks and conversations with them).
+    Without this a test run leaves rows behind that collide on the next run.
     """
     async with AsyncSessionLocal() as session:
         before = set(await session.scalars(sa.select(Document.id)))
@@ -93,33 +65,3 @@ async def app_session() -> AsyncIterator[AsyncSession]:
     # Same reason as the `client` fixture: asyncpg connections belong to the loop
     # that opened them, and the next test gets a fresh one.
     await engine.dispose()
-
-
-@pytest.fixture
-def enqueued(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Capture Celery hand-offs instead of putting real work on the queue."""
-    document_ids: list[str] = []
-
-    class StubTask:
-        @staticmethod
-        def delay(document_id: str) -> None:
-            document_ids.append(document_id)
-
-    monkeypatch.setattr("app.services.documents.process_document", StubTask)
-    return document_ids
-
-
-@pytest.fixture
-def fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Use FakeGenerator and FakeRewriter in chat routes."""
-    from app.chat.generate import FakeGenerator
-    from app.chat.rewrite import FakeRewriter
-
-    def fake_build_generator(settings):
-        return FakeGenerator()
-
-    def fake_build_rewriter(settings):
-        return FakeRewriter()
-
-    monkeypatch.setattr("app.api.routes.conversations.build_generator", fake_build_generator)
-    monkeypatch.setattr("app.api.routes.conversations.build_rewriter", fake_build_rewriter)

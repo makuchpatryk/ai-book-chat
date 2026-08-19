@@ -7,10 +7,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import api_router
-from app.config import get_settings
+from app.infrastructure.config.settings import get_settings
 from app.infrastructure.db.session import engine
-from app.logging import setup_logging
+from app.infrastructure.logging import setup_logging
+from app.interfaces.http.errors import register_error_handlers
+from app.interfaces.http.routers.conversations import router as conversations_router
+from app.interfaces.http.routers.documents import router as documents_router
+from app.interfaces.http.routers.search import router as search_router
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +44,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(api_router)
+    # Register error handlers
+    register_error_handlers(app)
+
+    # Include routers
+    app.include_router(conversations_router)
+    app.include_router(documents_router)
+    app.include_router(search_router)
+
     return app
 
 

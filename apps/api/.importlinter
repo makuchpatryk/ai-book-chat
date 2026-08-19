@@ -1,13 +1,21 @@
 [importlinter]
 root_packages =
     app
+include_external_packages = True
 
-# Contracts start permissive (only domain is declared) and tighten as each
-# layer lands. This ensures we enforce the dependency rule incrementally.
+# Domain layer: no external dependencies (stdlib + app.domain only)
 [importlinter:contract:1]
-name = Domain packages must exist
+name = Domain layer isolation
 type = forbidden
 source_modules =
     app.domain
 forbidden_modules =
-    # To be tightened in Step 8: no fastapi, sqlalchemy, celery, openai, httpx, pymupdf, redis, tiktoken, pydantic_settings
+    fastapi
+    sqlalchemy
+    celery
+    openai
+    httpx
+    pymupdf
+    redis
+    tiktoken
+    pydantic_settings
