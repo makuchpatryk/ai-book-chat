@@ -1,13 +1,10 @@
-"""Celery tasks."""
+"""Celery tasks (async via asyncio.run)."""
 
+import asyncio
 import logging
 from uuid import UUID
 
 from celery import shared_task
-
-from app.infrastructure.db.sync_session import session_scope
-from app.ingestion.embeddings import build_embedder
-from app.ingestion.pipeline import process_document as run_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -22,5 +19,19 @@ def ping() -> str:
 @shared_task(name="app.interfaces.worker.tasks.process_document", acks_late=True, time_limit=1800)
 def process_document(document_id: str) -> str:
     """Ingest an uploaded PDF. Returns the document's final status."""
-    with session_scope() as session:
-        return run_pipeline(session, UUID(document_id), build_embedder())
+    return asyncio.run(_ingest(UUID(document_id)))
+
+
+async def _ingest(document_id: UUID) -> str:
+    """Async ingestion entrypoint."""
+    from app.interfaces.worker.composition import get_ingest_document
+
+    use_case = get_ingest_document()
+
+    try:
+        document = await use_case.execute(document_id)
+        logger.info(f"document {document_id} ingestion complete: {document.status}")
+        return document.status.value
+    except Exception as e:
+        logger.exception(f"document {document_id} ingestion failed: {e}")
+        raise
