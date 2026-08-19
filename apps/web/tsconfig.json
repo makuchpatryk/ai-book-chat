@@ -21,7 +21,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@libs/*": ["../../libs/*"]
+      "@libs/*": ["./src/libs/*"]
     }
   },
   "include": ["src", "vite.config.ts", "eslint.config.js"]
