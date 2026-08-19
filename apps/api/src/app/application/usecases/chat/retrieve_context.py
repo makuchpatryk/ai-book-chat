@@ -15,6 +15,7 @@ class RetrievalResult:
     """Result of a retrieval attempt."""
 
     citations: list[Citation]
+    scored_chunks: list[ScoredChunk]  # Full scored chunks with all metadata
     grounded: bool
     reason: str  # "no_chunks", "no_relevant_chunks", "rerank_degraded_no_match", or ""
 
@@ -41,14 +42,18 @@ class RetrieveContext:
         # Step 1: Embed the query
         query_vector = await self.embedder.embed([query])
         if not query_vector:
-            return RetrievalResult(citations=[], grounded=False, reason="no_chunks")
+            return RetrievalResult(
+                citations=[], scored_chunks=[], grounded=False, reason="no_chunks"
+            )
 
         # Step 2: Search for similar chunks
         chunks = await self.uow.chunks.search_similar(
             document_id, query_vector[0], limit=self.policy.top_k * 2
         )
         if not chunks:
-            return RetrievalResult(citations=[], grounded=False, reason="no_chunks")
+            return RetrievalResult(
+                citations=[], scored_chunks=[], grounded=False, reason="no_chunks"
+            )
 
         # Step 3: Rerank (best-effort; degradation is acceptable)
         passages = [chunk.content for chunk in chunks]
@@ -83,7 +88,12 @@ class RetrieveContext:
 
         outcome = guard_and_cut(scored_chunks, self.policy)
         if not outcome.chunks:
-            return RetrievalResult(citations=[], grounded=False, reason=outcome.reason or "")
+            return RetrievalResult(
+                citations=[],
+                scored_chunks=[],
+                grounded=False,
+                reason=outcome.reason or "",
+            )
 
         # Convert scored chunks to citations
         citations = [
@@ -99,6 +109,7 @@ class RetrieveContext:
         ]
         return RetrievalResult(
             citations=citations,
+            scored_chunks=outcome.chunks,
             grounded=True,
-            reason=""
+            reason="",
         )

@@ -15,6 +15,7 @@ from app.application.usecases.documents.get_document_detail import GetDocumentDe
 from app.application.usecases.documents.list_documents import ListDocuments
 from app.application.usecases.documents.retry_document import RetryDocument
 from app.application.usecases.documents.upload_document import UploadDocument
+from app.application.usecases.search.search_document import SearchDocument
 from app.domain.ports.llm import AnswerGenerator, Embedder, Reranker, QueryRewriter
 from app.domain.values.policies import ChatPolicy, RetrievalPolicy
 from app.infrastructure.clock import SystemClock
@@ -141,3 +142,18 @@ async def get_retry_document(settings: Settings = Depends(get_settings)) -> Retr
     clock = SystemClock()
     stuck_after = timedelta(minutes=settings.stuck_after_minutes)
     return RetryDocument(uow_factory, queue, clock, stuck_after)
+
+
+async def get_search_document(settings: Settings = Depends(get_settings)) -> SearchDocument:
+    """FastAPI dependency for SearchDocument use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    generator, rewriter, reranker, embedder = build_adapters(settings)
+
+    retrieval_policy = RetrievalPolicy(
+        top_k=settings.retrieval_top_k,
+        min_score=settings.rerank_min_score,
+        max_distance=settings.retrieval_max_distance,
+        top_n=settings.rerank_top_n,
+    )
+
+    return SearchDocument(uow_factory, embedder, reranker, retrieval_policy)
