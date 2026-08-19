@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { Conversation, Document, DocumentDetail, Message } from "@/types";
+import type { Conversation, Document, DocumentDetail, Message } from "@libs/types";
 
 // Mock data
 const mockDocuments: Document[] = [

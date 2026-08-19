@@ -1,5 +1,5 @@
 import { useParams } from "react-router";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@libs/components/ui/card";
 import { ConversationList, useDocument, useConversations } from "@/features/chat";
 
 export function DocumentPage() {

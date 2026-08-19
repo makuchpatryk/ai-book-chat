@@ -2,12 +2,12 @@ import { formatDistanceToNow } from "date-fns";
 import { Plus, Trash2 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/shared";
+import { cn } from "@libs/utils/utils";
+import { Button } from "@libs/components/ui/button";
+import { ConfirmDialog } from "@libs/components/shared";
 import { useCreateConversation } from "../hooks/useCreateConversation";
 import { useDeleteConversation } from "../hooks/useDeleteConversation";
-import type { Conversation } from "@/types";
+import type { Conversation } from "@libs/types";
 
 export function ConversationList({
   documentId,

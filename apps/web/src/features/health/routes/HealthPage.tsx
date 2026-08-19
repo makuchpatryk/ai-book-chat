@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { getHealth } from "@/api/health/api";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ComponentStatus } from "@/types";
+import { getHealth } from "@libs/api/health/api";
+import { Badge } from "@libs/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@libs/components/ui/card";
+import type { ComponentStatus } from "@libs/types";
 
 function HealthStatusBadge({ label, status }: { label: string; status: ComponentStatus }) {
   return (

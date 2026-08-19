@@ -1,7 +1,7 @@
-import { cn } from "@/lib/utils";
-import { Card } from "@/components/ui/card";
+import { cn } from "@libs/utils/utils";
+import { Card } from "@libs/components/ui/card";
 import { MarkdownAnswer } from "./MarkdownAnswer";
-import type { Message } from "@/types";
+import type { Message } from "@libs/types";
 
 export function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";

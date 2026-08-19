@@ -1,11 +1,11 @@
 import { HeartPulse } from "lucide-react";
 import { NavLink, Outlet, useParams } from "react-router";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@libs/utils/utils";
 import { ConversationList, useConversations } from "@/features/chat";
 import { DocumentList, useDocuments } from "@/features/documents";
-import { ErrorBoundary } from "@/components/shared";
-import { Toaster } from "@/components/ui/sonner";
+import { ErrorBoundary } from "@libs/components/shared";
+import { Toaster } from "@libs/components/ui/sonner";
 
 const FOOTER_NAV = [{ to: "/health", label: "Status", icon: HeartPulse }];
 

@@ -1,7 +1,7 @@
 import { useRef, useEffect } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { StreamingMessage } from "./StreamingMessage";
-import type { Message } from "@/types";
+import type { Message } from "@libs/types";
 
 interface MessageListProps {
   messages: Message[];

@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { Send, Square } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@libs/components/ui/button";
+import { Textarea } from "@libs/components/ui/textarea";
+import { Alert, AlertDescription } from "@libs/components/ui/alert";
 
 interface MessageInputProps {
   onSend: (content: string) => void;

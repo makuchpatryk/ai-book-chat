@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { deleteConversation } from "@/api/conversations/api";
+import { deleteConversation } from "@libs/api/conversations/api";
 
 export function useDeleteConversation(documentId: string) {
   const queryClient = useQueryClient();

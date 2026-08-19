@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@libs/components/ui/card";
 import { DocumentList, UploadDropzone, useDocuments } from "@/features/documents";
 
 export function DocumentsPage() {

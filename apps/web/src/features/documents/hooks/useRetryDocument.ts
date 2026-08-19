@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { retryDocument } from "@/api/documents/api";
+import { retryDocument } from "@libs/api/documents/api";
 
 export function useRetryDocument() {
   const queryClient = useQueryClient();

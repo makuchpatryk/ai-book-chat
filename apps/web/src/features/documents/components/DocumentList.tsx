@@ -1,5 +1,5 @@
 import { DocumentListItem } from "./DocumentListItem";
-import type { Document } from "@/types";
+import type { Document } from "@libs/types";
 
 export function DocumentList({ documents }: { documents: Document[] | undefined }) {
   if (!documents || documents.length === 0) {

@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { streamMessage } from "@/api/chat/api";
+import { streamMessage } from "@libs/api/chat/api";
 import type { ChatStreamState } from "../types";
 
 export function useChatStream(conversationId: string) {

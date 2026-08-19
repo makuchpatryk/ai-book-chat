@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { createConversation } from "@/api/conversations/api";
+import { createConversation } from "@libs/api/conversations/api";
 
 export function useCreateConversation(documentId: string) {
   const queryClient = useQueryClient();

@@ -1,4 +1,4 @@
-import { Card } from "@/components/ui/card";
+import { Card } from "@libs/components/ui/card";
 import { MarkdownAnswer } from "./MarkdownAnswer";
 
 function TypingDots() {

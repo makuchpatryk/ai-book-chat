@@ -2,13 +2,13 @@ import { formatDistanceToNow } from "date-fns";
 import { NavLink, useNavigate } from "react-router";
 import { Trash2, RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { StatusBadge, ConfirmDialog } from "@/components/shared";
+import { cn } from "@libs/utils/utils";
+import { StatusBadge, ConfirmDialog } from "@libs/components/shared";
 import { useDeleteDocument } from "../hooks/useDeleteDocument";
 import { useRetryDocument } from "../hooks/useRetryDocument";
-import { Button } from "@/components/ui/button";
+import { Button } from "@libs/components/ui/button";
 import { toast } from "sonner";
-import type { Document } from "@/types";
+import type { Document } from "@libs/types";
 
 export function DocumentListItem({ document }: { document: Document }) {
   const navigate = useNavigate();

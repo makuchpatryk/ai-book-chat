@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Upload, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@libs/components/ui/alert";
 import { useUploadDocument } from "../hooks/useUploadDocument";
 
 const MAX_SIZE_MB = 50;

@@ -1,5 +1,5 @@
 import { useParams } from "react-router";
-import { Card } from "@/components/ui/card";
+import { Card } from "@libs/components/ui/card";
 import { MessageList, MessageInput, useMessages, useChatStream, useDocument } from "@/features/chat";
 
 export function ChatPage() {

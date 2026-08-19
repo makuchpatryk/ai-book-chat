@@ -20,7 +20,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@libs/*": ["../../libs/*"]
     }
   },
   "include": ["src", "vite.config.ts", "eslint.config.js"]

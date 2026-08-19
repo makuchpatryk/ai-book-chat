@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { listDocuments } from "@/api/documents/api";
-import type { Document, DocumentStatus } from "@/types";
+import { listDocuments } from "@libs/api/documents/api";
+import type { Document, DocumentStatus } from "@libs/types";
 
 export function hasProcessing(data: Document[] | undefined): boolean {
   return !!data?.some((doc) => {
