@@ -608,7 +608,19 @@ produces confusing errors.
   - LLM adapters: OpenAIGenerator, OpenAIRewriter, OpenAIReranker (async + AsyncOpenAI), FakeGenerator/Rewriter/Reranker (deterministic)
   - Embeddings: OllamaEmbedder (async httpx), FakeEmbedder
 
-**Status: Ready for Step 4 (use cases + HTTP interfaces). Pattern validated. No blockers.**
+**Completed (Step 4): ~4 hours**
+
+- ✅ Step 4: Application layer and HTTP interfaces:
+  - DTOs: CreateConversationCommand, AskQuestionCommand, ListConversationsCommand, GetMessagesCommand, DeleteConversationCommand
+  - Chat use cases: AskQuestion (full streaming pipeline), CreateConversation, ListConversations, GetMessages, DeleteConversation
+  - RetrieveContext: orchestrates embedding → search → rerank → guard with fallbacks
+  - SSE layer: to_frame (domain events → SSE frames), with_heartbeat (adds ping every 15s)
+  - HTTP composition: FastAPI Depends factories for all use cases (build_adapters + per-use-case factories)
+  - Error handlers: domain exceptions → HTTP status + detail (404/409/413/415/422)
+  - Thin router: ~140 lines (from 378), all orchestration moved to use cases
+  - Full mypy --strict compliance
+
+**Status: Ready for Step 5 (documents slice). Pattern proven.**
 
 ## Success Checklist
 
@@ -634,14 +646,14 @@ produces confusing errors.
 | 1 | Skeleton + no-op moves | 1–2 h | 2 h ✅ |
 | 2 | Chat domain + unit tests | 3–4 h | 3.5 h ✅ |
 | 3 | Ports, mappers, repos, UoW, async LLM/embedding adapters | 6–8 h | 6 h ✅ |
-| 4 | Chat use cases, SSE, composition, router rewrite, unit tests | 6–8 h | — |
+| 4 | Chat use cases, SSE, composition, router rewrite, unit tests | 6–8 h | 4 h ✅ |
 | 5 | Documents slice | 4–5 h | — |
 | 6 | Search slice | 1–2 h | — |
 | 7 | Ingestion slice + async worker | 5–6 h | — |
 | 8 | Cleanup, contract tightening, docs, test reorg | 3–4 h | — |
-| | **Total** | **~31–42 h** | **13 h / ~35 remaining** |
+| | **Total** | **~31–42 h** | **17.5 h / ~19 remaining** |
 
-**Pace:** Slightly faster than estimate (13/31 = 42% done, on track for 30–35 h total).
+**Pace:** Faster than estimate (17.5/31 = 56% done, on track for 30–32 h total).
 
 Step 4 is the checkpoint: if the pattern feels wrong there, the cost of changing course is
 one slice, not eight steps.
