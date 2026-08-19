@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ComponentStatus } from "@/types";
 
-function StatusBadge({ label, status }: { label: string; status: ComponentStatus }) {
+function HealthStatusBadge({ label, status }: { label: string; status: ComponentStatus }) {
   return (
     <div className="flex items-center justify-between border-b border-border py-2 last:border-b-0">
       <span className="text-sm text-muted-foreground">{label}</span>
@@ -34,9 +34,9 @@ export function HealthPage() {
         )}
         {data && (
           <div>
-            <StatusBadge label="Overall" status={data.status} />
-            <StatusBadge label="Database" status={data.database} />
-            <StatusBadge label="Redis" status={data.redis} />
+            <HealthStatusBadge label="Overall" status={data.status} />
+            <HealthStatusBadge label="Database" status={data.database} />
+            <HealthStatusBadge label="Redis" status={data.redis} />
           </div>
         )}
       </CardContent>
