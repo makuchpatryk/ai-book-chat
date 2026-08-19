@@ -8,28 +8,7 @@ Feature-based architecture with domain-driven DTOs and clean separation of conce
 
 ```
 src/
-├── api/                    # API layer (domain-organized)
-│   ├── client.ts          # HTTP client wrapper
-│   ├── sse.ts             # Server-sent events parser
-│   ├── documents/         # Document domain
-│   │   ├── types.ts       # DTOs
-│   │   └── api.ts         # Endpoints
-│   ├── conversations/     # Conversation domain
-│   │   ├── types.ts
-│   │   └── api.ts
-│   ├── chat/              # Chat streaming
-│   │   ├── types.ts
-│   │   └── api.ts
-│   └── health/            # Health checks
-│       ├── types.ts
-│       └── api.ts
-├── types/
-│   ├── shared.ts          # Shared types (ComponentStatus)
-│   └── index.ts           # Re-exports for convenience
-├── components/
-│   ├── ui/                # Shadcn primitives (button, card, input, etc.)
-│   └── shared/            # Multi-use components (ConfirmDialog, ErrorBoundary)
-├── features/              # Feature-specific code
+├── features/              # Feature-specific code (domain-focused)
 │   ├── documents/         # Document upload & management
 │   │   ├── types.ts       # Feature-local types
 │   │   ├── hooks/
@@ -41,6 +20,9 @@ src/
 │   │   │   ├── DocumentList.tsx
 │   │   │   ├── DocumentListItem.tsx
 │   │   │   └── UploadDropzone.tsx
+│   │   ├── routes/
+│   │   │   ├── DocumentsPage.tsx
+│   │   │   └── DocumentPage.tsx
 │   │   └── index.ts       # Public API
 │   ├── chat/              # Chat interface
 │   │   ├── types.ts
@@ -58,21 +40,45 @@ src/
 │   │   │   ├── MessageBubble.tsx
 │   │   │   ├── StreamingMessage.tsx
 │   │   │   └── MarkdownAnswer.tsx
+│   │   ├── routes/
+│   │   │   └── ChatPage.tsx
 │   │   └── index.ts
-│   ├── health/            # Status page
-│   └── _template/         # Template for new features
-├── routes/                # Page components (route-level)
-│   ├── DocumentsPage.tsx
-│   ├── DocumentPage.tsx
-│   ├── ChatPage.tsx
-│   └── HealthPage.tsx
+│   └── health/            # Status page
+│       ├── routes/
+│       │   └── HealthPage.tsx
+│       └── index.ts
 ├── layouts/
 │   └── AppLayout.tsx      # Sidebar + outlet
-├── lib/
-│   └── utils.ts           # Helpers (cn function)
-└── test/
-    ├── setup.ts           # Vitest + MSW setup
-    └── handlers.ts        # Mock API handlers
+├── libs/                  # Shared code (cross-feature)
+│   ├── api/               # API layer (domain-organized)
+│   │   ├── client.ts      # HTTP client wrapper
+│   │   ├── sse.ts         # Server-sent events parser
+│   │   ├── documents/     # Document domain
+│   │   │   ├── types.ts   # DTOs
+│   │   │   └── api.ts     # Endpoints
+│   │   ├── conversations/
+│   │   │   ├── types.ts
+│   │   │   └── api.ts
+│   │   ├── chat/
+│   │   │   ├── types.ts
+│   │   │   └── api.ts
+│   │   └── health/
+│   │       ├── types.ts
+│   │       └── api.ts
+│   ├── components/
+│   │   ├── ui/            # Shadcn primitives (button, card, input, etc.)
+│   │   └── shared/        # Multi-use components (ConfirmDialog, ErrorBoundary)
+│   ├── types/
+│   │   ├── shared.ts      # Shared types (ComponentStatus)
+│   │   └── index.ts       # Re-exports for convenience
+│   └── utils/
+│       └── utils.ts       # Helpers (cn function)
+├── test/
+│   ├── setup.ts           # Vitest + MSW setup
+│   └── handlers.ts        # Mock API handlers
+├── main.tsx
+├── router.tsx
+└── index.css
 ```
 
 ## Import Patterns
@@ -80,12 +86,12 @@ src/
 ### API Types & Functions
 
 ```typescript
-// ✅ Good: import from domain
-import type { Document } from "@/api/documents/types";
-import { listDocuments, uploadDocument } from "@/api/documents/api";
+// ✅ Good: import from domain in libs
+import type { Document } from "@libs/api/documents/types";
+import { listDocuments, uploadDocument } from "@libs/api/documents/api";
 
 // ❌ Avoid: importing from wrong domain
-import type { Document } from "@/types";  // Not for API types
+import type { Document } from "@libs/types";  // API types stay in @libs/api
 ```
 
 ### Features
@@ -99,28 +105,32 @@ import { useChatStream } from "@/features/chat";
 import { DocumentListItem } from "@/features/documents/components";
 ```
 
-### Shared Components
+### Shared Libraries
 
 ```typescript
-// ✅ Good: import from shared
-import { ConfirmDialog, ErrorBoundary } from "@/components/shared";
+// ✅ Good: import from libs (shared code)
+import { ConfirmDialog, ErrorBoundary } from "@libs/components/shared";
+import { Button } from "@libs/components/ui/button";
+import { cn } from "@libs/utils/utils";
+import type { ComponentStatus } from "@libs/types";
 
-// ✅ Good: import UI primitives
-import { Button } from "@/components/ui/button";
-
-// ❌ Avoid: importing from features
-import { StatusBadge } from "@/features/documents";  // Now shared
+// ❌ Avoid: importing internal lib files
+import { MessageInput } from "@/features/chat";  // Not a shared component
 ```
 
 ## Creating a New Feature
 
-1. Copy `/features/_template/` → `/features/my-feature/`
-2. Replace `Template` with your feature name
-3. Create domain if needed: `/api/my-domain/types.ts` + `/api/my-domain/api.ts`
-4. Implement hooks in `/features/my-feature/hooks/`
-5. Implement components in `/features/my-feature/components/`
-6. Export public API in `/features/my-feature/index.ts`
-7. Use in routes via feature index: `import { MyView } from "@/features/my-feature"`
+1. Create feature folder: `src/features/my-feature/`
+2. Add directories: `hooks/`, `components/`, `routes/`
+3. Create domain if needed: `src/libs/api/my-domain/types.ts` + `api.ts`
+4. Implement hooks in `src/features/my-feature/hooks/`
+5. Implement components in `src/features/my-feature/components/`
+6. Implement routes in `src/features/my-feature/routes/`
+7. Create `src/features/my-feature/types.ts` for feature-local types (if needed)
+8. Export public API in `src/features/my-feature/index.ts`
+9. Register routes in `src/router.tsx`
+
+Routes belong to features, not top-level `routes/` folder. This keeps all feature code together.
 
 ## State Management
 
@@ -136,7 +146,7 @@ import { StatusBadge } from "@/features/documents";  // Now shared
 All API functions fully typed:
 
 ```typescript
-// api/documents/api.ts
+// libs/api/documents/api.ts
 import type { Document, DocumentDetail } from "./types";
 
 export async function listDocuments(): Promise<Document[]> {
@@ -145,6 +155,12 @@ export async function listDocuments(): Promise<Document[]> {
 ```
 
 Request → response chain is unbroken. No `any` types in API layer.
+
+Import types from their domain:
+```typescript
+// ✅ Good: import from the domain's types
+import type { Document } from "@libs/api/documents/types";
+```
 
 ## Testing
 
@@ -157,8 +173,16 @@ Request → response chain is unbroken. No `any` types in API layer.
 
 **Current**: Manual sync between backend and frontend DTOs.
 
-Each API domain has a `types.ts` file with TypeScript interfaces matching the backend API responses.
+Each API domain has a `types.ts` file in `libs/api/{domain}/` with TypeScript interfaces matching the backend API responses.
 
 **Future**: Automate with OpenAPI schema generation when backend has `@fastapi/openapi-generator` or similar.
+
+## Architecture Principles
+
+1. **Features own domain logic**: Hooks, components, local state, routes all live in feature folder
+2. **Libs are shared**: API layer, UI components, utilities, types shared across features
+3. **Routes in features**: Each feature owns its route pages, router imports from features
+4. **No circular imports**: Import-linter enforces: shared ← features ← routes
+5. **Type safety**: All API boundaries fully typed, no `any` in API layer
 
 See `specs/frontend-refactor-feature-architecture.md` for full architecture plan.
