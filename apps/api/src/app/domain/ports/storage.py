@@ -3,8 +3,39 @@
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import NamedTuple, Protocol
 from uuid import UUID
+
+
+class OutlineEntry(NamedTuple):
+    """PDF outline entry."""
+    level: int
+    title: str
+    page_number: int
+
+
+class TextLine(NamedTuple):
+    """Text line with font metrics."""
+    page_number: int
+    text: str
+    font_size: float
+    span_count: int
+
+
+class PageText(NamedTuple):
+    """Text content from a page."""
+    page_number: int
+    text: str
+
+
+@dataclass(frozen=True)
+class ExtractedPdf:
+    """Result of extracting a PDF."""
+    page_count: int
+    title: str
+    pages: list[PageText]
+    lines: list[TextLine]
+    outline: list[OutlineEntry]
 
 
 @dataclass
@@ -43,8 +74,8 @@ class IngestionQueue(Protocol):
 class PdfExtractor(Protocol):
     """Port for extracting text from PDFs."""
 
-    def extract_text(self, file_path: str) -> list[str]:
-        """Extract text pages from a PDF file."""
+    def extract(self, file_path: str, fallback_title: str | None = None) -> ExtractedPdf:
+        """Extract PDF metadata, text, outline, and line metrics."""
         ...
 
 
