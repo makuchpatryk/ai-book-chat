@@ -1,5 +1,5 @@
 import { request, upload } from "@/api/client";
-import type { Document, DocumentDetail } from "@/types";
+import type { Document, DocumentDetail } from "./types";
 
 export async function listDocuments(): Promise<Document[]> {
   return request<Document[]>("/documents");

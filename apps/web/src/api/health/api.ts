@@ -1,5 +1,5 @@
 import { request } from "@/api/client";
-import type { HealthResponse } from "@/types";
+import type { HealthResponse } from "./types";
 
 /**
  * /health answers 503 with a body when a dependency is down, so the raw

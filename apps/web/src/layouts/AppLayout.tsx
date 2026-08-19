@@ -6,7 +6,7 @@ import { ConversationList } from "@/features/chat/ConversationList";
 import { DocumentList } from "@/features/documents/DocumentList";
 import { useDocuments } from "@/features/documents/useDocuments";
 import { useConversations } from "@/features/chat/useConversations";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary } from "@/components/shared";
 import { Toaster } from "@/components/ui/sonner";
 
 const FOOTER_NAV = [{ to: "/health", label: "Status", icon: HeartPulse }];

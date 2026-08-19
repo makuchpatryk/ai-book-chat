@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from "react-router";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ConfirmDialog } from "@/components/shared";
 import { useCreateConversation } from "@/features/chat/useCreateConversation";
 import { useDeleteConversation } from "@/features/chat/useDeleteConversation";
 import type { Conversation } from "@/types";

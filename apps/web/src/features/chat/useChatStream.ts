@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { streamMessage } from "@/api/chat";
+import { streamMessage } from "@/api/chat/api";
 
 interface ChatStreamState {
   status: "idle" | "streaming" | "error";
