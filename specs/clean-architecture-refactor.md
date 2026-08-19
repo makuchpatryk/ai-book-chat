@@ -620,7 +620,18 @@ produces confusing errors.
   - Thin router: ~140 lines (from 378), all orchestration moved to use cases
   - Full mypy --strict compliance
 
-**Status: Ready for Step 5 (documents slice). Pattern proven.**
+**Completed (Steps 5-6): ~6 hours**
+
+- ✅ Step 5: Documents slice:
+  - Adapters: LocalFileStorage (upload_dir), CeleryIngestionQueue, SystemClock
+  - Use cases: UploadDocument (dedupe by hash, re-enqueue FAILED), ListDocuments, GetDocumentDetail, DeleteDocument (with file cleanup), RetryDocument (eligibility check + enqueue)
+  - Thin router: ~50 lines
+- ✅ Step 6: Search slice:
+  - SearchDocument use case (policy override, retrieval via RetrieveContext)
+  - Thin router: ~40 lines
+  - RetrieveContext enhanced to expose scored_chunks for full search metadata (distance, full content)
+
+**Status: Ready for Step 7 (ingestion/worker). 23.5h elapsed.**
 
 ## Success Checklist
 
@@ -647,13 +658,13 @@ produces confusing errors.
 | 2 | Chat domain + unit tests | 3–4 h | 3.5 h ✅ |
 | 3 | Ports, mappers, repos, UoW, async LLM/embedding adapters | 6–8 h | 6 h ✅ |
 | 4 | Chat use cases, SSE, composition, router rewrite, unit tests | 6–8 h | 4 h ✅ |
-| 5 | Documents slice | 4–5 h | — |
-| 6 | Search slice | 1–2 h | — |
+| 5 | Documents slice | 4–5 h | 4 h ✅ |
+| 6 | Search slice | 1–2 h | 2 h ✅ |
 | 7 | Ingestion slice + async worker | 5–6 h | — |
 | 8 | Cleanup, contract tightening, docs, test reorg | 3–4 h | — |
-| | **Total** | **~31–42 h** | **17.5 h / ~19 remaining** |
+| | **Total** | **~31–42 h** | **23.5 h / ~9 remaining** |
 
-**Pace:** Faster than estimate (17.5/31 = 56% done, on track for 30–32 h total).
+**Pace:** Well ahead of estimate (23.5/31 = 76% done, on track for ~29–30 h total).
 
 Step 4 is the checkpoint: if the pattern feels wrong there, the cost of changing course is
 one slice, not eight steps.
