@@ -10,8 +10,14 @@ from app.application.usecases.chat.create_conversation import CreateConversation
 from app.application.usecases.chat.delete_conversation import DeleteConversation
 from app.application.usecases.chat.get_messages import GetMessages
 from app.application.usecases.chat.list_conversations import ListConversations
+from app.application.usecases.documents.delete_document import DeleteDocument
+from app.application.usecases.documents.get_document_detail import GetDocumentDetail
+from app.application.usecases.documents.list_documents import ListDocuments
+from app.application.usecases.documents.retry_document import RetryDocument
+from app.application.usecases.documents.upload_document import UploadDocument
 from app.domain.ports.llm import AnswerGenerator, Embedder, Reranker, QueryRewriter
 from app.domain.values.policies import ChatPolicy, RetrievalPolicy
+from app.infrastructure.clock import SystemClock
 from app.infrastructure.config.settings import Settings, get_settings
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from app.infrastructure.embeddings.adapters import build_embedder
@@ -23,6 +29,8 @@ from app.infrastructure.llm.adapters import (
     OpenAIReranker,
     OpenAIRewriter,
 )
+from app.infrastructure.queue.celery_queue import CeleryIngestionQueue
+from app.infrastructure.storage.local_files import LocalFileStorage
 from app.infrastructure.db.session import AsyncSessionLocal
 
 
@@ -96,3 +104,40 @@ async def get_delete_conversation(settings: Settings = Depends(get_settings)) ->
     """FastAPI dependency for DeleteConversation use case."""
     uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
     return DeleteConversation(uow_factory)
+
+
+async def get_upload_document(settings: Settings = Depends(get_settings)) -> UploadDocument:
+    """FastAPI dependency for UploadDocument use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    file_storage = LocalFileStorage(settings.upload_dir)
+    queue = CeleryIngestionQueue()
+    return UploadDocument(uow_factory, file_storage, queue, settings.max_upload_mb)
+
+
+async def get_list_documents(settings: Settings = Depends(get_settings)) -> ListDocuments:
+    """FastAPI dependency for ListDocuments use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    return ListDocuments(uow_factory)
+
+
+async def get_get_document_detail(settings: Settings = Depends(get_settings)) -> GetDocumentDetail:
+    """FastAPI dependency for GetDocumentDetail use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    return GetDocumentDetail(uow_factory)
+
+
+async def get_delete_document(settings: Settings = Depends(get_settings)) -> DeleteDocument:
+    """FastAPI dependency for DeleteDocument use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    file_storage = LocalFileStorage(settings.upload_dir)
+    return DeleteDocument(uow_factory, file_storage)
+
+
+async def get_retry_document(settings: Settings = Depends(get_settings)) -> RetryDocument:
+    """FastAPI dependency for RetryDocument use case."""
+    from datetime import timedelta
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    queue = CeleryIngestionQueue()
+    clock = SystemClock()
+    stuck_after = timedelta(minutes=settings.stuck_after_minutes)
+    return RetryDocument(uow_factory, queue, clock, stuck_after)

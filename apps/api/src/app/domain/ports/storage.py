@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -66,6 +67,6 @@ class TokenCounter(Protocol):
 class Clock(Protocol):
     """Port for getting current time."""
 
-    def now(self) -> object:
+    def now(self) -> datetime:
         """Get current datetime."""
         ...
