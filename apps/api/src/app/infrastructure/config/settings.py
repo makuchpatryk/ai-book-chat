@@ -67,18 +67,23 @@ class Settings(BaseSettings):
     chunk_overlap_ratio: float = 0.15
 
     # Retrieval — re-ranking
-    rerank_model: str = "openai/gpt-oss-120b"
+    rerank_model: str = "openai/gpt-oss-20b"
     retrieval_top_k: int = 30
     rerank_top_n: int = 8
     rerank_min_score: int = 5
     rerank_max_tokens: int = 2048
 
     # Chat — generation and query rewriting
-    chat_model: str = "openai/gpt-oss-120b"
+    chat_model: str = "openai/gpt-oss-20b"
     chat_rewrite_model: str = "openai/gpt-oss-20b"
     chat_max_tokens: int = 2048
     chat_history_turns: int = 6
     chat_heartbeat_seconds: float = 15.0
+
+    # Document description
+    describe_model: str = "openai/gpt-oss-20b"
+    describe_max_input_tokens: int = 8000
+    describe_max_tokens: int = 3000
 
     # Retry and recovery
     stuck_after_minutes: int = 30
