@@ -41,6 +41,7 @@ export function ChatPage() {
             streaming={isStreaming}
             liveText={liveText}
             pendingUserText={pendingUserText}
+            onFollowUp={isDocumentReady ? startStream : undefined}
           />
           {error && (
             <div className="px-4 py-2 bg-destructive/10 text-destructive text-sm border-t border-border">

@@ -1,32 +1,45 @@
-import { cn } from "@libs/utils/utils";
 import { Card } from "@libs/components/ui/card";
 import { MarkdownAnswer } from "./MarkdownAnswer";
+import { FollowUps } from "./FollowUps";
+import { parseAnswer } from "../utils/parseAnswer";
 import type { Message } from "@libs/types";
 
-export function MessageBubble({ message }: { message: Message }) {
+interface MessageBubbleProps {
+  message: Message;
+  /** Set on the latest answer only, to offer its follow-up questions. */
+  onFollowUp?: (question: string) => void;
+}
+
+export function MessageBubble({ message, onFollowUp }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
-  return (
-    <div className={cn("flex gap-3", isUser ? "justify-end" : "justify-start")}>
-      <div className={cn("max-w-md", isUser ? "order-2" : "order-1")}>
-        {isUser ? (
-          <Card className="bg-primary text-primary-foreground p-3">
-            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">
-              {message.grounded === false && (
-                <p>Not in this document — answered from general knowledge</p>
-              )}
-              {message.truncated && <p>Stopped early</p>}
-            </div>
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <Card className="max-w-[80%] bg-primary text-primary-foreground p-3">
+          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        </Card>
+      </div>
+    );
+  }
 
-            <Card className="bg-muted p-3">
-              <MarkdownAnswer content={message.content} />
-            </Card>
-          </div>
-        )}
+  const { body, followUps } = parseAnswer(message.content);
+
+  return (
+    <div className="flex justify-start">
+      <div className="w-full max-w-3xl space-y-2">
+        <div className="text-sm text-muted-foreground">
+          {message.grounded === false && (
+            <p>Not in this document — answered from general knowledge</p>
+          )}
+          {message.truncated && <p>Stopped early</p>}
+        </div>
+
+        <Card className="bg-muted px-4 py-3">
+          <MarkdownAnswer content={body} />
+        </Card>
+
+        {onFollowUp && <FollowUps questions={followUps} onAsk={onFollowUp} />}
       </div>
     </div>
   );

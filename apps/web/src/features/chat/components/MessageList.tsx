@@ -9,6 +9,8 @@ interface MessageListProps {
   liveText: string;
   /** Optimistic user message, shown until the persisted copy is refetched. */
   pendingUserText?: string | null;
+  /** Sends a suggested follow-up question; omit to hide the suggestions. */
+  onFollowUp?: (question: string) => void;
 }
 
 export function MessageList({
@@ -16,6 +18,7 @@ export function MessageList({
   streaming,
   liveText,
   pendingUserText,
+  onFollowUp,
 }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,7 +91,15 @@ export function MessageList({
       ) : (
         <>
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onFollowUp={
+                msg === last && msg.role === "assistant" && !streaming && !showPending
+                  ? onFollowUp
+                  : undefined
+              }
+            />
           ))}
           {showPending && (
             <MessageBubble

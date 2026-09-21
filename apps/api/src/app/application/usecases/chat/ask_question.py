@@ -15,18 +15,32 @@ from app.application.usecases.chat.retrieve_context import RetrieveContext
 
 logger = logging.getLogger(__name__)
 
-ANSWER_PROMPT = """You answer questions about one book. Ground the answer in the passages
+FORMAT_RULES = """Format the answer in Markdown:
+- Open with a one- or two-sentence direct answer, no heading above it.
+- For anything longer, split the rest into sections with "## " headings (2-5 sections).
+- Inside sections use short paragraphs and "- " bullet lists; bold the key terms.
+- Put a short quote from the book in a "> " blockquote only when the wording matters.
+- Keep a simple question short: skip the sections and answer in a few sentences.
+Finish with a line containing exactly FOLLOW-UPS: (in English, whatever the answer language),
+then 2-3 short follow-up questions the reader could ask next, one per "- " line, in the
+language of the question. Write nothing after them."""
+
+ANSWER_PROMPT = f"""You answer questions about one book. Ground the answer in the passages
 provided and cite the page for every claim drawn from them, inline, as [p.N] — use the page
 range given with each passage. Where the passages only partly answer the question, say which
 part the book covers, then add what you know from outside it, clearly marked as not from the
 book (e.g. "Not in the book: ..."). Never present outside knowledge as if it came from the
 passages, and never invent a page number for it. Write an analytical answer: explain the
-reasoning the text supports, not just a one-line lookup. Answer in the language of the question."""
+reasoning the text supports, not just a one-line lookup. Answer in the language of the question.
 
-OUTSIDE_KNOWLEDGE_PROMPT = """You answer questions about one book, but retrieval found nothing
+{FORMAT_RULES}"""
+
+OUTSIDE_KNOWLEDGE_PROMPT = f"""You answer questions about one book, but retrieval found nothing
 relevant in it for this question. Open by stating plainly that the book does not cover this,
 then answer from your own general knowledge. Never cite pages and never attribute any claim to
-the book. Say when you are unsure rather than guessing. Answer in the language of the question."""
+the book. Say when you are unsure rather than guessing. Answer in the language of the question.
+
+{FORMAT_RULES}"""
 
 
 class AskQuestion:
