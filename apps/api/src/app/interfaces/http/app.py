@@ -54,6 +54,11 @@ def create_app() -> FastAPI:
     app.include_router(documents_router)
     app.include_router(search_router)
 
+    @app.get("/health", include_in_schema=False)
+    async def health() -> dict[str, str]:
+        """Liveness probe for the compose healthcheck."""
+        return {"status": "ok"}
+
     return app
 
 
