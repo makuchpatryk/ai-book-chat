@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
+from app.domain.values.retrieval import Citation
 from app.domain.values.status import MessageRole
 
 
@@ -19,3 +20,4 @@ class Message:
     grounded: bool = False
     truncated: bool = False
     created_at: datetime = field(default_factory=datetime.utcnow)
+    sources: list[Citation] = field(default_factory=list)

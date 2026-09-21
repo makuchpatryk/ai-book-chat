@@ -22,14 +22,18 @@ class LocalFileStorage(FileStorage):
         sha256_hash = hashlib.sha256()
         total_size = 0
 
-        with open(file_path, "wb") as f:
-            async for chunk in chunks:
-                total_size += len(chunk)
-                if total_size > max_bytes:
-                    file_path.unlink()
-                    raise ValueError(f"file exceeds {max_bytes} bytes")
-                sha256_hash.update(chunk)
-                f.write(chunk)
+        try:
+            with open(file_path, "wb") as f:
+                async for chunk in chunks:
+                    total_size += len(chunk)
+                    if total_size > max_bytes:
+                        raise ValueError(f"file exceeds {max_bytes} bytes")
+                    sha256_hash.update(chunk)
+                    f.write(chunk)
+        except BaseException:
+            # Never leave a partial upload behind (size limit, bad header, client gone).
+            file_path.unlink(missing_ok=True)
+            raise
 
         return StoredFile(
             path=str(file_path),

@@ -78,35 +78,27 @@ async def get_messages(
     if messages is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
 
-    response = []
-    for msg in messages:
-        sources_list = []
-        for source in msg.sources if hasattr(msg, "sources") else []:
-            chunk = source.chunk
-            if chunk:
-                section_title = chunk.section.title if hasattr(chunk, "section") and chunk.section else None
-                source_item = SourceRead(
-                    chunk_id=chunk.id,
-                    page_start=chunk.page_start,
-                    page_end=chunk.page_end,
-                    score=source.score,
-                    section_title=section_title,
-                    snippet=chunk.content[:240],
+    return [
+        MessageRead(
+            id=msg.id,
+            role=msg.role.value,
+            content=msg.content,
+            grounded=msg.grounded,
+            truncated=msg.truncated,
+            sources=[
+                SourceRead(
+                    chunk_id=c.chunk_id,
+                    page_start=c.page_start,
+                    page_end=c.page_end,
+                    score=c.score,
+                    section_title=c.section_title,
+                    snippet=c.snippet,
                 )
-                sources_list.append(source_item)
-
-        response.append(
-            MessageRead(
-                id=msg.id,
-                role=msg.role.value,
-                content=msg.content,
-                grounded=msg.grounded,
-                truncated=msg.truncated,
-                sources=sources_list,
-            )
+                for c in msg.sources
+            ],
         )
-
-    return response
+        for msg in messages
+    ]
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)

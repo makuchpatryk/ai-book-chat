@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.domain.entities import Chunk, Conversation, Document, Message, Section
 from app.domain.ports.repositories import (
@@ -22,6 +22,7 @@ from app.infrastructure.db.mappers import (
     orm_document_to_entity,
     orm_message_to_entity,
     orm_section_to_entity,
+    orm_source_to_citation,
     orm_turn_to_entity,
 )
 from app.infrastructure.db.models import (
@@ -35,6 +36,9 @@ from app.infrastructure.db.models import (
 )
 from app.infrastructure.db.models import (
     Message as MessageORM,
+)
+from app.infrastructure.db.models import (
+    MessageSource as MessageSourceORM,
 )
 from app.infrastructure.db.models import (
     Section as SectionORM,
@@ -344,9 +348,17 @@ class SqlMessageRepository(MessageRepository):
             select(MessageORM)
             .where(MessageORM.conversation_id == conversation_id)
             .order_by(MessageORM.order_index)
+            .options(
+                selectinload(MessageORM.sources)
+                .joinedload(MessageSourceORM.chunk)
+                .joinedload(ChunkORM.section)
+            )
         )
         rows = result.scalars().all()
-        return [orm_message_to_entity(row) for row in rows]
+        return [
+            orm_message_to_entity(row, [orm_source_to_citation(s) for s in row.sources])
+            for row in rows
+        ]
 
     async def add(self, message: Message) -> None:
         from app.infrastructure.db.mappers import entity_message_to_orm

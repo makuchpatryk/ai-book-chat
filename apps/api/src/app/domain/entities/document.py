@@ -1,7 +1,7 @@
 """Document entity — an uploaded PDF and its processing state."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from app.domain.values.overview import DocumentOverview, OverviewStatus
@@ -57,7 +57,11 @@ class Document:
             return RetryVerdict(can_retry=False, reason="already_processed")
 
         if self.status in (DocumentStatus.PENDING, DocumentStatus.PARSING, DocumentStatus.EMBEDDING):
-            age = now - self.updated_at
+            # The DB hands back aware datetimes; the clock hands out naive UTC.
+            updated_at = self.updated_at
+            if updated_at.tzinfo is not None:
+                updated_at = updated_at.astimezone(UTC).replace(tzinfo=None)
+            age = now - updated_at
             if age < stuck_after:
                 return RetryVerdict(can_retry=False, reason="still_processing")
             return RetryVerdict(can_retry=True, reason="stuck")

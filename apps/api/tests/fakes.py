@@ -64,6 +64,12 @@ class FakeDocuments:
         self.saved.append(document)
         self.store[document.id] = document
 
+    async def add(self, document: Document) -> None:
+        self.store[document.id] = document
+
+    async def find_by_hash(self, content_hash: str) -> Document | None:
+        return next((d for d in self.store.values() if d.content_hash == content_hash), None)
+
     async def get_cover(self, document_id: UUID) -> tuple[bytes, str] | None:
         return self.covers.get(document_id)
 
@@ -111,10 +117,11 @@ class FakeUowFactory:
 class FakeQueue:
     def __init__(self, fail: bool = False) -> None:
         self.overview_requests: list[UUID] = []
+        self.ingest_requests: list[UUID] = []
         self.fail = fail
 
     async def enqueue(self, document_id: UUID) -> None:
-        raise NotImplementedError
+        self.ingest_requests.append(document_id)
 
     async def enqueue_overview(self, document_id: UUID) -> None:
         if self.fail:

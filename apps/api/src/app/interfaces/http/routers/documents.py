@@ -1,6 +1,5 @@
 """Document management endpoints (thin layer)."""
 
-import hashlib
 from collections.abc import AsyncGenerator
 from typing import Annotated
 from uuid import UUID
@@ -33,43 +32,22 @@ from app.interfaces.http.schemas.documents import (
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
+UPLOAD_CHUNK_BYTES = 64 * 1024
+
 
 @router.post("", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def upload_document(
-    response: Response,
     file: Annotated[UploadFile, File()],
     use_case: UploadDocument = Depends(get_upload_document),
 ) -> DocumentRead:
-    """Upload a document for processing."""
-    # Read all chunks and compute hash
-    chunks = []
-    sha256_hash = hashlib.sha256()
+    """Upload a document for processing. A duplicate upload is a 409 (see errors.py)."""
 
-    while True:
-        chunk = await file.read(8192)
-        if not chunk:
-            break
-        chunks.append(chunk)
-        sha256_hash.update(chunk)
-
-    content_hash = sha256_hash.hexdigest()
-
-    async def chunk_generator() -> AsyncGenerator[bytes, None]:
-        for chunk in chunks:
+    async def read_chunks() -> AsyncGenerator[bytes, None]:
+        while chunk := await file.read(UPLOAD_CHUNK_BYTES):
             yield chunk
 
-    try:
-        document = await use_case.execute(file.filename or "", content_hash, chunk_generator())
-        return DocumentRead.model_validate(document)
-    except Exception as e:
-        # DuplicateUpload returns 200 with existing doc
-        from app.domain.errors import DuplicateUpload
-        if isinstance(e, DuplicateUpload):
-            response.status_code = status.HTTP_200_OK
-            # Re-run to get the existing document
-            document = await use_case.execute(file.filename or "", content_hash, chunk_generator())
-            return DocumentRead.model_validate(document)
-        raise
+    document = await use_case.execute(file.filename or "", read_chunks())
+    return DocumentRead.model_validate(document)
 
 
 @router.get("", response_model=list[DocumentRead])

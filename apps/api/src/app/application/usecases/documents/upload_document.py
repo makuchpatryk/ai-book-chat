@@ -9,6 +9,21 @@ from app.domain.ports.storage import FileStorage, IngestionQueue
 from app.domain.ports.unit_of_work import UnitOfWorkFactory
 from app.domain.values.status import DocumentStatus
 
+PDF_MAGIC = b"%PDF-"
+
+
+async def _require_pdf_header(chunks: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
+    """Pass chunks through, raising NotAPdf unless the stream starts with %PDF-."""
+    head = b""
+    async for chunk in chunks:
+        if len(head) < len(PDF_MAGIC):
+            head += chunk[: len(PDF_MAGIC) - len(head)]
+            if len(head) >= len(PDF_MAGIC) and head != PDF_MAGIC:
+                raise NotAPdf()
+        yield chunk
+    if head != PDF_MAGIC:
+        raise NotAPdf()
+
 
 class UploadDocument:
     """Use case: upload and enqueue a document for ingestion."""
@@ -25,19 +40,31 @@ class UploadDocument:
         self.queue = queue
         self.max_upload_mb = max_upload_mb
 
-    async def execute(
-        self, filename: str, content_hash: str, chunks: AsyncIterator[bytes]
-    ) -> Document | None:
+    async def execute(self, filename: str, chunks: AsyncIterator[bytes]) -> Document | None:
         """Upload document, checking for duplicates and re-enqueuing failed ones."""
         # Validate filename
         if not filename.lower().endswith(".pdf"):
             raise UnsupportedFileType()
 
+        # Stream straight to storage: size limit and hash are enforced while
+        # writing, so the upload is never held in memory.
+        doc_id = uuid4()
+        key = f"{doc_id}.pdf"
+        try:
+            stored_file = await self.file_storage.save(
+                key, _require_pdf_header(chunks), self.max_upload_mb * 1024 * 1024
+            )
+        except ValueError as e:
+            if "exceeds" in str(e):
+                raise FileTooLarge(self.max_upload_mb)
+            raise
+
         async with self.uow_factory() as uow:
             # Check for duplicate by hash
-            existing = await uow.documents.find_by_hash(content_hash)
+            existing = await uow.documents.find_by_hash(stored_file.sha256)
 
             if existing:
+                await self.file_storage.delete(key)
                 if existing.status == DocumentStatus.FAILED:
                     # Re-enqueue a FAILED duplicate
                     await self.queue.enqueue(existing.id)
@@ -46,24 +73,6 @@ class UploadDocument:
                     # Already processed or processing
                     raise DuplicateUpload()
 
-            # Create new document
-            doc_id = uuid4()
-            key = f"{doc_id}.pdf"
-
-            # Save file (this validates size and magic bytes)
-            try:
-                stored_file = await self.file_storage.save(
-                    key, chunks, self.max_upload_mb * 1024 * 1024
-                )
-            except ValueError as e:
-                if "exceeds" in str(e):
-                    raise FileTooLarge(self.max_upload_mb)
-                raise
-
-            # Validate PDF magic bytes
-            if not stored_file.sha256:  # placeholder validation
-                raise NotAPdf()
-
             # Create document entity
             document = Document(
                 id=doc_id,
@@ -71,7 +80,7 @@ class UploadDocument:
                 title=filename,  # temp title, updated after parsing
                 status=DocumentStatus.PENDING,
                 file_path=stored_file.path,
-                content_hash=content_hash,
+                content_hash=stored_file.sha256,
                 page_count=None,
                 error_message=None,
             )

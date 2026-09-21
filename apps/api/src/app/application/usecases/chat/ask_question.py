@@ -1,5 +1,6 @@
 """Ask a question and stream the answer."""
 
+import logging
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
@@ -11,6 +12,8 @@ from app.domain.values.messages import Turn
 from app.domain.values.policies import ChatPolicy, RetrievalPolicy
 from app.domain.values.status import MessageRole
 from app.application.usecases.chat.retrieve_context import RetrieveContext
+
+logger = logging.getLogger(__name__)
 
 ANSWER_PROMPT = """You answer questions about one book. Ground the answer in the passages
 provided and cite the page for every claim drawn from them, inline, as [p.N] — use the page
@@ -125,9 +128,14 @@ class AskQuestion:
 
             # Stream generation
             answer_text = ""
-            async for token in self.generator.stream(system_prompt, chat_turns):
-                answer_text += token
-                yield TokenProduced(text=token)
+            try:
+                async for token in self.generator.stream(system_prompt, chat_turns):
+                    answer_text += token
+                    yield TokenProduced(text=token)
+            except Exception:
+                logger.exception("answer generation failed for conversation %s", conversation_id)
+                yield AnswerFailed(detail="answer generation failed")
+                return
 
             # Persist message in a new transaction
             async with self.uow_factory() as persist_uow:
@@ -146,6 +154,7 @@ class AskQuestion:
                         order_index=order_index,
                         grounded=retrieval.grounded,
                         truncated=False,
+                        sources=citations,
                     )
 
                     await persist_uow.messages.add(assistant_msg)

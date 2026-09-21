@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from app.domain.entities import Chunk, Conversation, Document, Message, Section
 from app.domain.values.messages import Turn
 from app.domain.values.overview import OverviewStatus
+from app.domain.values.retrieval import Citation
 from app.domain.values.status import DocumentStatus, MessageRole
 from app.infrastructure.db.models import (
     Chunk as ChunkORM,
@@ -17,6 +18,9 @@ from app.infrastructure.db.models import (
 )
 from app.infrastructure.db.models import (
     Message as MessageORM,
+)
+from app.infrastructure.db.models import (
+    MessageSource as MessageSourceORM,
 )
 from app.infrastructure.db.models import (
     Section as SectionORM,
@@ -153,7 +157,7 @@ def entity_conversation_to_orm(
         )
 
 
-def orm_message_to_entity(row: MessageORM) -> Message:
+def orm_message_to_entity(row: MessageORM, sources: list[Citation] | None = None) -> Message:
     """Map ORM Message row to domain Message entity."""
     return Message(
         id=row.id,
@@ -164,6 +168,20 @@ def orm_message_to_entity(row: MessageORM) -> Message:
         grounded=row.grounded,
         truncated=row.truncated,
         created_at=row.created_at,
+        sources=sources or [],
+    )
+
+
+def orm_source_to_citation(row: MessageSourceORM) -> Citation:
+    """Map ORM MessageSource row (with chunk and section loaded) to a Citation."""
+    chunk = row.chunk
+    return Citation(
+        chunk_id=chunk.id,
+        page_start=chunk.page_start,
+        page_end=chunk.page_end,
+        score=row.score,
+        section_title=chunk.section.title if chunk.section else None,
+        snippet=chunk.content[:240],
     )
 
 
@@ -185,6 +203,10 @@ def entity_message_to_orm(entity: Message, orm_row: MessageORM | None = None) ->
             grounded=entity.grounded,
             truncated=entity.truncated,
             created_at=entity.created_at,
+            sources=[
+                MessageSourceORM(chunk_id=c.chunk_id, score=c.score, rank=rank)
+                for rank, c in enumerate(entity.sources)
+            ],
         )
 
 

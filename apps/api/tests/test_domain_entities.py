@@ -1,7 +1,7 @@
 """Unit tests for domain entities (no infrastructure, marked unit)."""
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from app.domain.entities.conversation import Conversation
@@ -77,6 +77,24 @@ class TestDocumentRetryEligibility:
             file_path="/uploads/test.pdf",
             content_hash="abc123",
             updated_at=now,
+        )
+
+        verdict = doc.retry_eligibility(now + timedelta(minutes=40), timedelta(minutes=30))
+
+        assert verdict.can_retry is True
+        assert verdict.reason == "stuck"
+
+    def test_aware_updated_at_from_db_compares_with_naive_clock(self) -> None:
+        """The DB hands back aware timestamps; the clock hands out naive UTC."""
+        now = datetime.utcnow()
+        doc = Document(
+            id=uuid4(),
+            filename="test.pdf",
+            title="Test",
+            status=DocumentStatus.PARSING,
+            file_path="/uploads/test.pdf",
+            content_hash="abc123",
+            updated_at=now.replace(tzinfo=UTC),
         )
 
         verdict = doc.retry_eligibility(now + timedelta(minutes=40), timedelta(minutes=30))

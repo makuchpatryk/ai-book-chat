@@ -75,6 +75,13 @@ export function useChatStream(conversationId: string) {
             syncMessages();
           }
         }
+
+        // Stream closed without a done/error frame — don't leave the input locked.
+        setState((prev) =>
+          prev.status === "streaming"
+            ? { ...prev, status: "error", error: "Stream ended unexpectedly" }
+            : prev
+        );
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           if (timerRef.current) clearTimeout(timerRef.current);
