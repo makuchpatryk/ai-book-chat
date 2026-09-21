@@ -1,15 +1,31 @@
 """Mappers between ORM models and domain entities."""
 
+from datetime import UTC, datetime
+
 from app.domain.entities import Chunk, Conversation, Document, Message, Section
 from app.domain.values.messages import Turn
+from app.domain.values.overview import OverviewStatus
 from app.domain.values.status import DocumentStatus, MessageRole
 from app.infrastructure.db.models import (
     Chunk as ChunkORM,
+)
+from app.infrastructure.db.models import (
     Conversation as ConversationORM,
+)
+from app.infrastructure.db.models import (
     Document as DocumentORM,
+)
+from app.infrastructure.db.models import (
     Message as MessageORM,
+)
+from app.infrastructure.db.models import (
     Section as SectionORM,
 )
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Domain timestamps are naive UTC; asyncpg would read a naive value as local time."""
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 
 def orm_document_to_entity(row: DocumentORM) -> Document:
@@ -26,6 +42,14 @@ def orm_document_to_entity(row: DocumentORM) -> Document:
         chunking_strategy=row.chunking_strategy,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        author=row.author,
+        summary=row.summary,
+        language=row.language,
+        doc_type=row.doc_type,
+        topics=row.topics or [],
+        description_sections=row.description_sections or [],
+        overview_status=OverviewStatus(row.overview_status) if row.overview_status else None,
+        cover_mime=row.cover_mime,
     )
 
 
@@ -40,7 +64,15 @@ def entity_document_to_orm(entity: Document, orm_row: DocumentORM | None = None)
         orm_row.page_count = entity.page_count
         orm_row.error_message = entity.error_message
         orm_row.chunking_strategy = entity.chunking_strategy
-        orm_row.updated_at = entity.updated_at
+        orm_row.author = entity.author
+        orm_row.summary = entity.summary
+        orm_row.language = entity.language
+        orm_row.doc_type = entity.doc_type
+        orm_row.topics = entity.topics or None
+        orm_row.description_sections = entity.description_sections or None
+        orm_row.overview_status = entity.overview_status.value if entity.overview_status else None
+        orm_row.cover_mime = entity.cover_mime
+        orm_row.updated_at = _as_utc(entity.updated_at)
         return orm_row
     else:
         return DocumentORM(
@@ -53,8 +85,16 @@ def entity_document_to_orm(entity: Document, orm_row: DocumentORM | None = None)
             page_count=entity.page_count,
             error_message=entity.error_message,
             chunking_strategy=entity.chunking_strategy,
-            created_at=entity.created_at,
-            updated_at=entity.updated_at,
+            author=entity.author,
+            summary=entity.summary,
+            language=entity.language,
+            doc_type=entity.doc_type,
+            topics=entity.topics or None,
+            description_sections=entity.description_sections or None,
+            overview_status=entity.overview_status.value if entity.overview_status else None,
+            cover_mime=entity.cover_mime,
+            created_at=_as_utc(entity.created_at),
+            updated_at=_as_utc(entity.updated_at),
         )
 
 

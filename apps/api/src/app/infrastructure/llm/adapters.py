@@ -7,10 +7,10 @@ from collections.abc import AsyncIterator
 
 from openai import AsyncOpenAI
 
-from app.domain.ports.llm import AnswerGenerator, QueryRewriter, Reranker
+from app.domain.ports.llm import AnswerGenerator, DocumentDescriber, QueryRewriter, Reranker
 from app.domain.values.messages import Turn
+from app.domain.values.overview import DocumentOverview, OverviewSection
 from app.infrastructure.config.settings import Settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +161,103 @@ class FakeReranker(Reranker):
         return [50] * len(passages)
 
 
+class OpenAIDescriber(DocumentDescriber):
+    """OpenAI-compatible document describer."""
+
+    def __init__(self, client: AsyncOpenAI, model: str, max_tokens: int):
+        self.client = client
+        self.model = model
+        self.max_tokens = max_tokens
+
+    async def describe(
+        self,
+        title: str,
+        author: str | None,
+        section_titles: list[str],
+        sample_text: str,
+    ) -> DocumentOverview:
+        """Generate a document overview from sampled text. Raises ValueError on invalid JSON."""
+        author_line = f"Author: {author}\n" if author else ""
+        sections_line = "Sections: " + ", ".join(section_titles) if section_titles else ""
+        prompt = (
+            f"Document Title: {title}\n"
+            f"{author_line}"
+            f"{sections_line}\n\n"
+            f"Sample text from the document:\n{sample_text}\n\n"
+            "Based on the above, generate a JSON object with:\n"
+            "- summary (≤300 chars)\n"
+            "- language (ISO 639-1, the document's language)\n"
+            "- doc_type (e.g., 'Technical Manual', 'Novel', 'Academic Paper')\n"
+            "- topics (list of 3-6 topics, as strings)\n"
+            "- sections (list of {heading, body} objects, 3-6 sections)\n"
+            "Reply JSON only."
+        )
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            messages=[
+                {"role": "system", "content": "You are a document analyzer. Reply JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        content = response.choices[0].message.content or ""
+        payload = _extract_json_object(content)
+
+        raw_topics = payload.get("topics")
+        raw_sections = payload.get("sections")
+        if not isinstance(raw_sections, list):
+            raise ValueError("response has no 'sections' list")
+
+        summary = str(payload.get("summary") or "")[:300]
+        language = str(payload.get("language") or "en")[:16]
+        doc_type = str(payload.get("doc_type") or "")[:64]
+        topics = [str(t)[:64] for t in raw_topics[:6]] if isinstance(raw_topics, list) else []
+        sections_list = [
+            OverviewSection(
+                heading=str(s.get("heading") or "")[:256],
+                body=str(s.get("body") or "")[:2048],
+            )
+            for s in raw_sections[:6]
+            if isinstance(s, dict) and (s.get("heading") or s.get("body"))
+        ]
+
+        if len(sections_list) < 3:
+            raise ValueError(f"expected 3+ sections, got {len(sections_list)}")
+
+        return DocumentOverview(
+            summary=summary,
+            language=language,
+            doc_type=doc_type,
+            topics=topics,
+            sections=sections_list,
+        )
+
+
+class FakeDescriber(DocumentDescriber):
+    """Fake describer for testing (deterministic)."""
+
+    async def describe(
+        self,
+        title: str,
+        author: str | None,
+        section_titles: list[str],
+        sample_text: str,
+    ) -> DocumentOverview:
+        """Return a fake but structurally valid overview."""
+        return DocumentOverview(
+            summary=f"Fake summary of {title}.",
+            language="en",
+            doc_type="Book",
+            topics=["topic1", "topic2", "topic3"],
+            sections=[
+                OverviewSection(heading="Introduction", body="This is the introduction."),
+                OverviewSection(heading="Main Content", body="This is the main content."),
+                OverviewSection(heading="Conclusion", body="This is the conclusion."),
+            ],
+        )
+
+
 def build_generator(settings: Settings) -> AnswerGenerator:
     """Build answer generator based on settings."""
     if not settings.llm_token:
@@ -183,3 +280,11 @@ def build_reranker(settings: Settings) -> Reranker:
         return FakeReranker()
     client = AsyncOpenAI(api_key=settings.llm_token, base_url=settings.llm_base_url)
     return OpenAIReranker(client, settings.rerank_model, settings.rerank_max_tokens)
+
+
+def build_describer(settings: Settings) -> DocumentDescriber:
+    """Build document describer based on settings."""
+    if not settings.llm_token:
+        return FakeDescriber()
+    client = AsyncOpenAI(api_key=settings.llm_token, base_url=settings.llm_base_url)
+    return OpenAIDescriber(client, settings.describe_model, settings.describe_max_tokens)

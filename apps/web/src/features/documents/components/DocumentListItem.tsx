@@ -7,6 +7,7 @@ import { StatusBadge, ConfirmDialog } from "@libs/components/shared";
 import { useDeleteDocument } from "../hooks/useDeleteDocument";
 import { useRetryDocument } from "../hooks/useRetryDocument";
 import { Button } from "@libs/components/ui/button";
+import { DocumentCover } from "./DocumentCover";
 import { toast } from "sonner";
 import type { Document } from "@libs/types";
 
@@ -41,14 +42,27 @@ export function DocumentListItem({ document }: { document: Document }) {
             )
           }
         >
-          <div className="flex items-start justify-between gap-2 mb-1">
+          <div className="flex items-start gap-3">
+            <DocumentCover
+              documentId={document.id}
+              hasCover={document.has_cover}
+              alt={`Cover of ${document.title}`}
+              className="w-12"
+            />
             <div className="min-w-0 flex-1">
-              <div className="font-medium truncate">{document.title}</div>
-              <div className="text-xs text-muted-foreground">
-                {document.page_count ?? "—"} pages • {uploadedAgo}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">{document.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {document.page_count ?? "—"} pages • {uploadedAgo}
+                  </div>
+                </div>
+                <StatusBadge status={document.status} />
               </div>
+              {document.summary && (
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{document.summary}</p>
+              )}
             </div>
-            <StatusBadge status={document.status} />
           </div>
           {document.status === "FAILED" && document.error_message && (
             <div className="text-xs text-destructive mt-2">{document.error_message}</div>

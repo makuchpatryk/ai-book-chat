@@ -8,6 +8,13 @@ export interface Section {
   end_page: number;
 }
 
+export type OverviewStatus = "pending" | "ready" | "failed";
+
+export interface DescriptionSection {
+  heading: string;
+  body: string;
+}
+
 export interface Document {
   id: string;
   filename: string;
@@ -16,9 +23,17 @@ export interface Document {
   page_count: number | null;
   error_message: string | null;
   created_at: string;
+  author: string | null;
+  summary: string | null;
+  language: string | null;
+  doc_type: string | null;
+  topics: string[];
+  overview_status: OverviewStatus | null;
+  has_cover: boolean;
 }
 
 export interface DocumentDetail extends Document {
   sections: Section[];
+  description_sections: DescriptionSection[];
   chunk_count: number;
 }

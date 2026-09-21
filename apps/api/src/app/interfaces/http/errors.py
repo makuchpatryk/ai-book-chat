@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.domain.errors import (
     ConversationNotFound,
+    CoverNotFound,
     DocumentAlreadyProcessed,
     DocumentNotFound,
     DocumentNotReady,
@@ -12,6 +13,7 @@ from app.domain.errors import (
     DuplicateUpload,
     FileTooLarge,
     NotAPdf,
+    OverviewAlreadyPending,
     SourceFileMissing,
     UnsupportedFileType,
 )
@@ -32,6 +34,22 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": "conversation not found"},
+        )
+
+    @app.exception_handler(CoverNotFound)
+    async def handle_cover_not_found(request: Request, exc: CoverNotFound) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": "cover not found"},
+        )
+
+    @app.exception_handler(OverviewAlreadyPending)
+    async def handle_overview_pending(
+        request: Request, exc: OverviewAlreadyPending
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": "overview generation already pending"},
         )
 
     @app.exception_handler(DocumentNotReady)

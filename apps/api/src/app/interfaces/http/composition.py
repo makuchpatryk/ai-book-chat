@@ -1,6 +1,5 @@
 """HTTP interface composition — DI factory functions for use cases."""
 
-from typing import Union
 
 from fastapi import Depends
 from openai import AsyncOpenAI
@@ -11,15 +10,18 @@ from app.application.usecases.chat.delete_conversation import DeleteConversation
 from app.application.usecases.chat.get_messages import GetMessages
 from app.application.usecases.chat.list_conversations import ListConversations
 from app.application.usecases.documents.delete_document import DeleteDocument
+from app.application.usecases.documents.get_cover import GetCover
 from app.application.usecases.documents.get_document_detail import GetDocumentDetail
 from app.application.usecases.documents.list_documents import ListDocuments
+from app.application.usecases.documents.request_overview import RequestOverview
 from app.application.usecases.documents.retry_document import RetryDocument
 from app.application.usecases.documents.upload_document import UploadDocument
 from app.application.usecases.search.search_document import SearchDocument
-from app.domain.ports.llm import AnswerGenerator, Embedder, Reranker, QueryRewriter
+from app.domain.ports.llm import AnswerGenerator, Embedder, QueryRewriter, Reranker
 from app.domain.values.policies import ChatPolicy, RetrievalPolicy
 from app.infrastructure.clock import SystemClock
 from app.infrastructure.config.settings import Settings, get_settings
+from app.infrastructure.db.session import AsyncSessionLocal
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from app.infrastructure.embeddings.adapters import build_embedder
 from app.infrastructure.llm.adapters import (
@@ -32,7 +34,6 @@ from app.infrastructure.llm.adapters import (
 )
 from app.infrastructure.queue.celery_queue import CeleryIngestionQueue
 from app.infrastructure.storage.local_files import LocalFileStorage
-from app.infrastructure.db.session import AsyncSessionLocal
 
 
 def build_adapters(settings: Settings) -> tuple[AnswerGenerator, QueryRewriter, Reranker, Embedder]:
@@ -157,3 +158,17 @@ async def get_search_document(settings: Settings = Depends(get_settings)) -> Sea
     )
 
     return SearchDocument(uow_factory, embedder, reranker, retrieval_policy)
+
+
+async def get_request_overview(settings: Settings = Depends(get_settings)) -> RequestOverview:
+    """FastAPI dependency for RequestOverview use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    queue = CeleryIngestionQueue()
+    clock = SystemClock()
+    return RequestOverview(uow_factory, queue, clock)
+
+
+async def get_get_cover(settings: Settings = Depends(get_settings)) -> GetCover:
+    """FastAPI dependency for GetCover use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    return GetCover(uow_factory)

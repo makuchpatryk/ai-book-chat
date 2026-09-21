@@ -29,6 +29,13 @@ class PageText(NamedTuple):
 
 
 @dataclass(frozen=True)
+class CoverImage:
+    """Rendered cover image."""
+    data: bytes
+    mime_type: str
+
+
+@dataclass(frozen=True)
 class ExtractedPdf:
     """Result of extracting a PDF."""
     page_count: int
@@ -36,6 +43,7 @@ class ExtractedPdf:
     pages: list[PageText]
     lines: list[TextLine]
     outline: list[OutlineEntry]
+    author: str | None = None
 
 
 @dataclass
@@ -70,12 +78,20 @@ class IngestionQueue(Protocol):
         """Enqueue a document for ingestion."""
         ...
 
+    async def enqueue_overview(self, document_id: UUID) -> None:
+        """Enqueue overview generation for a document."""
+        ...
+
 
 class PdfExtractor(Protocol):
     """Port for extracting text from PDFs."""
 
     def extract(self, file_path: str, fallback_title: str | None = None) -> ExtractedPdf:
         """Extract PDF metadata, text, outline, and line metrics."""
+        ...
+
+    def render_cover(self, file_path: str, width_px: int) -> CoverImage | None:
+        """Render first page as a cover image. Returns None if page is blank/corrupt."""
         ...
 
 

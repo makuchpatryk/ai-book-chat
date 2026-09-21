@@ -43,6 +43,14 @@ class DocumentRepository(Protocol):
         """Delete all sections and chunks for a document."""
         ...
 
+    async def get_cover(self, document_id: UUID) -> tuple[bytes, str] | None:
+        """Get cover image and MIME type. Returns None if no cover."""
+        ...
+
+    async def set_cover(self, document_id: UUID, data: bytes, mime: str) -> None:
+        """Store cover image and MIME type."""
+        ...
+
 
 class SectionRepository(Protocol):
     """Persistence port for sections."""
@@ -76,6 +84,10 @@ class ChunkRepository(Protocol):
 
     async def add_many(self, chunks: list[Chunk]) -> None:
         """Add multiple chunks."""
+        ...
+
+    async def list_for_document(self, document_id: UUID) -> list[Chunk]:
+        """List all chunks for a document in order."""
         ...
 
 

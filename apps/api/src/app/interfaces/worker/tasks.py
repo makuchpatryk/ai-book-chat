@@ -35,3 +35,25 @@ async def _ingest(document_id: UUID) -> str:
     except Exception as e:
         logger.exception(f"document {document_id} ingestion failed: {e}")
         raise
+
+
+@shared_task(name="app.interfaces.worker.tasks.generate_overview", acks_late=True, time_limit=300)
+def generate_overview(document_id: str) -> bool:
+    """Generate document overview. Never raises — status is persisted."""
+    return asyncio.run(_generate_overview(UUID(document_id)))
+
+
+async def _generate_overview(document_id: UUID) -> bool:
+    """Async overview generation entrypoint."""
+    from app.interfaces.worker.composition import get_generate_overview
+
+    use_case = get_generate_overview()
+
+    try:
+        success = await use_case.execute(document_id)
+        outcome = "success" if success else "failed"
+        logger.info(f"document {document_id} overview generation: {outcome}")
+        return success
+    except Exception as e:
+        logger.exception(f"document {document_id} overview generation error: {e}")
+        return False

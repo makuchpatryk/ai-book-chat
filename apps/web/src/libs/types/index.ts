@@ -6,7 +6,14 @@
  */
 
 export type { ComponentStatus } from "./shared";
-export type { DocumentStatus, Section, Document, DocumentDetail } from "@libs/api/documents/types";
+export type {
+  DocumentStatus,
+  OverviewStatus,
+  DescriptionSection,
+  Section,
+  Document,
+  DocumentDetail,
+} from "@libs/api/documents/types";
 export type { Conversation, Message, Source } from "@libs/api/conversations/types";
 export type { ChatEvent } from "@libs/api/chat/types";
 export type { HealthResponse } from "@libs/api/health/types";

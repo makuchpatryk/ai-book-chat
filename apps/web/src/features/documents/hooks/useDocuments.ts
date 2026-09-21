@@ -5,7 +5,7 @@ import type { Document, DocumentStatus } from "@libs/types";
 export function hasProcessing(data: Document[] | undefined): boolean {
   return !!data?.some((doc) => {
     const status: DocumentStatus = doc.status;
-    return ["PENDING", "PARSING", "EMBEDDING"].includes(status);
+    return ["PENDING", "PARSING", "EMBEDDING"].includes(status) || doc.overview_status === "pending";
   });
 }
 

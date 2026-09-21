@@ -5,7 +5,15 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.values.overview import OverviewStatus
 from app.infrastructure.db.models import DocumentStatus
+
+
+class DescriptionSection(BaseModel):
+    """A section of the document description."""
+
+    heading: str
+    body: str
 
 
 class DocumentRead(BaseModel):
@@ -19,6 +27,13 @@ class DocumentRead(BaseModel):
     # Populated only on FAILED; it is the whole point of the failed state.
     error_message: str | None
     created_at: datetime
+    author: str | None = None
+    summary: str | None = None
+    language: str | None = None
+    doc_type: str | None = None
+    topics: list[str] = []
+    overview_status: OverviewStatus | None = None
+    has_cover: bool = False
 
 
 class SectionRead(BaseModel):
@@ -33,4 +48,5 @@ class SectionRead(BaseModel):
 
 class DocumentDetail(DocumentRead):
     sections: list[SectionRead]
+    description_sections: list[DescriptionSection] = []
     chunk_count: int

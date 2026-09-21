@@ -11,6 +11,7 @@ from typing import Any
 import pymupdf
 
 from app.domain.ports.storage import (
+    CoverImage,
     ExtractedPdf,
     OutlineEntry,
     PageText,
@@ -107,8 +108,11 @@ class PyMuPdfExtractor(PdfExtractor):
                 pages.append(PageText(page_number=page_number, text=text))
                 lines.extend(page_lines)
 
-            metadata_title = (document.metadata or {}).get("title") or ""
+            metadata = document.metadata or {}
+            metadata_title = metadata.get("title") or ""
+            metadata_author = metadata.get("author") or ""
             title = metadata_title.strip() or (fallback_title or "").strip() or path.stem
+            author = metadata_author.strip() or None
             outline = _read_outline(document, page_count)
         finally:
             document.close()
@@ -130,4 +134,28 @@ class PyMuPdfExtractor(PdfExtractor):
             pages=pages,
             lines=lines,
             outline=outline,
+            author=author,
         )
+
+    def render_cover(self, file_path: str, width_px: int) -> CoverImage | None:
+        """Render first page as JPEG. Returns None if page is corrupt/blank."""
+        path = Path(file_path)
+        try:
+            document = pymupdf.open(path)
+        except Exception:
+            return None
+
+        try:
+            if document.page_count < 1:
+                return None
+            page = document[0]
+            # Scale so the page width is width_px; height scales proportionally
+            scale = width_px / page.rect.width
+            matrix = pymupdf.Matrix(scale, scale)
+            pixmap = page.get_pixmap(matrix=matrix)
+            jpeg_bytes = pixmap.tobytes("jpeg", jpg_quality=80)
+            return CoverImage(data=jpeg_bytes, mime_type="image/jpeg")
+        except Exception:
+            return None
+        finally:
+            document.close()

@@ -8,19 +8,28 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 
 from app.application.usecases.documents.delete_document import DeleteDocument
+from app.application.usecases.documents.get_cover import GetCover
 from app.application.usecases.documents.get_document_detail import GetDocumentDetail
 from app.application.usecases.documents.list_documents import ListDocuments
+from app.application.usecases.documents.request_overview import RequestOverview
 from app.application.usecases.documents.retry_document import RetryDocument
 from app.application.usecases.documents.upload_document import UploadDocument
 from app.domain.errors import DocumentNotFound
 from app.interfaces.http.composition import (
     get_delete_document,
+    get_get_cover,
     get_get_document_detail,
     get_list_documents,
+    get_request_overview,
     get_retry_document,
     get_upload_document,
 )
-from app.interfaces.http.schemas.documents import DocumentDetail, DocumentRead, SectionRead
+from app.interfaces.http.schemas.documents import (
+    DescriptionSection,
+    DocumentDetail,
+    DocumentRead,
+    SectionRead,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -89,6 +98,9 @@ async def get_document(
     return DocumentDetail(
         **doc_read.model_dump(),
         sections=section_reads,
+        description_sections=[
+            DescriptionSection(**s) for s in document.description_sections
+        ],
         chunk_count=len(sections),  # placeholder
     )
 
@@ -106,6 +118,39 @@ async def retry_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
+
+@router.get("/{document_id}/cover", status_code=status.HTTP_200_OK)
+async def get_document_cover(
+    document_id: UUID,
+    use_case: GetCover = Depends(get_get_cover),
+) -> Response:
+    """Get document cover image."""
+    cover_bytes, mime_type = await use_case.execute(document_id)
+    return Response(
+        content=cover_bytes,
+        media_type=mime_type,
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@router.post(
+    "/{document_id}/overview/regenerate",
+    response_model=DocumentRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def regenerate_overview(
+    document_id: UUID,
+    request_uc: RequestOverview = Depends(get_request_overview),
+    detail_uc: GetDocumentDetail = Depends(get_get_document_detail),
+) -> DocumentRead:
+    """Request overview regeneration for a document."""
+    await request_uc.execute(document_id)
+    result = await detail_uc.execute(document_id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
+    document, _ = result
+    return DocumentRead.model_validate(document)
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

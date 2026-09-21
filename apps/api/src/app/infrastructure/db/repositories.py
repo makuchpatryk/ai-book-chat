@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload
 
 from app.domain.entities import Chunk, Conversation, Document, Message, Section
 from app.domain.ports.repositories import (
@@ -26,9 +26,17 @@ from app.infrastructure.db.mappers import (
 )
 from app.infrastructure.db.models import (
     Chunk as ChunkORM,
+)
+from app.infrastructure.db.models import (
     Conversation as ConversationORM,
+)
+from app.infrastructure.db.models import (
     Document as DocumentORM,
+)
+from app.infrastructure.db.models import (
     Message as MessageORM,
+)
+from app.infrastructure.db.models import (
     Section as SectionORM,
 )
 
@@ -106,6 +114,27 @@ class SqlDocumentRepository(DocumentRepository):
         )
         await self.session.flush()
 
+    async def get_cover(self, document_id: UUID) -> tuple[bytes, str] | None:
+        result = await self.session.execute(
+            select(DocumentORM.cover_image, DocumentORM.cover_mime).where(
+                DocumentORM.id == document_id
+            )
+        )
+        row = result.one_or_none()
+        if row and row[0] is not None:
+            return row[0], row[1]
+        return None
+
+    async def set_cover(self, document_id: UUID, data: bytes, mime: str) -> None:
+        result = await self.session.execute(
+            select(DocumentORM).where(DocumentORM.id == document_id)
+        )
+        orm_row = result.scalar_one_or_none()
+        if orm_row:
+            orm_row.cover_image = data
+            orm_row.cover_mime = mime
+            await self.session.flush()
+
 
 class SqlSectionRepository(SectionRepository):
     """SQLAlchemy implementation of SectionRepository."""
@@ -114,7 +143,6 @@ class SqlSectionRepository(SectionRepository):
         self.session = session
 
     async def add(self, section: Section) -> None:
-        from app.infrastructure.db.mappers import orm_section_to_entity
         orm_row = SectionORM(
             id=section.id,
             document_id=section.document_id,
@@ -151,7 +179,6 @@ class SqlChunkRepository(ChunkRepository):
     async def search_similar(
         self, document_id: UUID, vector: list[float], limit: int
     ) -> list[RetrievedChunk]:
-        from pgvector.sqlalchemy import Vector
         result = await self.session.execute(
             select(
                 ChunkORM.id,
@@ -235,6 +262,15 @@ class SqlChunkRepository(ChunkRepository):
         ]
         self.session.add_all(orm_rows)
         await self.session.flush()
+
+    async def list_for_document(self, document_id: UUID) -> list[Chunk]:
+        result = await self.session.execute(
+            select(ChunkORM)
+            .where(ChunkORM.document_id == document_id)
+            .order_by(ChunkORM.order_index)
+        )
+        rows = result.scalars().all()
+        return [orm_chunk_to_entity(row) for row in rows]
 
 
 class SqlConversationRepository(ConversationRepository):

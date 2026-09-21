@@ -1,4 +1,4 @@
-import { request, upload } from "@libs/api/client";
+import { API_BASE, request, upload } from "@libs/api/client";
 import type { Document, DocumentDetail } from "./types";
 
 export async function listDocuments(): Promise<Document[]> {
@@ -21,4 +21,12 @@ export async function deleteDocument(id: string): Promise<void> {
 
 export async function retryDocument(id: string): Promise<Document> {
   return request<Document>(`/documents/${id}/retry`, { method: "POST" });
+}
+
+export async function regenerateOverview(id: string): Promise<Document> {
+  return request<Document>(`/documents/${id}/overview/regenerate`, { method: "POST" });
+}
+
+export function documentCoverUrl(id: string): string {
+  return `${API_BASE}/documents/${id}/cover`;
 }

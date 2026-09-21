@@ -27,6 +27,14 @@ class DocumentNotReady(DomainError):
         super().__init__(f"document not ready for {activity}")
 
 
+class CoverNotFound(DomainError):
+    """Document has no cover image."""
+
+
+class OverviewAlreadyPending(DomainError):
+    """Overview is already being generated."""
+
+
 class DocumentAlreadyProcessed(DomainError):
     """Document has already been processed."""
 

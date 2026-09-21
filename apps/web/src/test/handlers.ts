@@ -11,6 +11,13 @@ const mockDocuments: Document[] = [
     page_count: 10,
     error_message: null,
     created_at: new Date().toISOString(),
+    author: "Jane Author",
+    summary: "A short summary of the test document.",
+    language: "en",
+    doc_type: "Technical manual",
+    topics: ["testing", "mocks"],
+    overview_status: "ready",
+    has_cover: true,
   },
 ];
 
@@ -69,9 +76,19 @@ export const handlers = [
           end_page: 5,
         },
       ],
+      description_sections: [
+        { heading: "Overview", body: "What the document covers." },
+        { heading: "Audience", body: "Who should read it." },
+      ],
       chunk_count: 100,
     };
     return HttpResponse.json(detail);
+  }),
+
+  http.post("/api/documents/:id/overview/regenerate", ({ params }) => {
+    const doc = mockDocuments.find((d) => d.id === params.id);
+    if (!doc) return HttpResponse.json({ detail: "Not found" }, { status: 404 });
+    return HttpResponse.json({ ...doc, overview_status: "pending" }, { status: 202 });
   }),
 
   http.post("/api/documents", async ({ request }) => {
@@ -98,6 +115,13 @@ export const handlers = [
       page_count: null,
       error_message: null,
       created_at: new Date().toISOString(),
+      author: null,
+      summary: null,
+      language: null,
+      doc_type: null,
+      topics: [],
+      overview_status: null,
+      has_cover: false,
     };
 
     return HttpResponse.json(newDoc, { status: 201 });

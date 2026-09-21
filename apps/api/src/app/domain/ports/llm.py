@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from typing import Protocol
 
 from app.domain.values.messages import Turn
+from app.domain.values.overview import DocumentOverview
 
 
 class GenerationEvent(Protocol):
@@ -41,4 +42,18 @@ class Embedder(Protocol):
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple texts into vectors."""
+        ...
+
+
+class DocumentDescriber(Protocol):
+    """Port for generating document descriptions."""
+
+    async def describe(
+        self,
+        title: str,
+        author: str | None,
+        section_titles: list[str],
+        sample_text: str,
+    ) -> DocumentOverview:
+        """Generate a document overview from sampled text."""
         ...

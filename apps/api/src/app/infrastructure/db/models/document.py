@@ -5,8 +5,9 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+import sqlalchemy
 from sqlalchemy import DateTime, Enum, Index, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
 from app.infrastructure.db.base import Base
 
@@ -48,6 +49,15 @@ class Document(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    author: Mapped[str | None] = mapped_column(String(512))
+    summary: Mapped[str | None] = mapped_column(Text)
+    language: Mapped[str | None] = mapped_column(String(16))
+    doc_type: Mapped[str | None] = mapped_column(String(64))
+    topics: Mapped[list[str] | None] = mapped_column(sqlalchemy.ARRAY(String(64)))
+    description_sections: Mapped[list[dict[str, str]] | None] = mapped_column(sqlalchemy.JSON)
+    overview_status: Mapped[str | None] = mapped_column(String(16))
+    cover_image: Mapped[bytes | None] = deferred(mapped_column(sqlalchemy.LargeBinary))
+    cover_mime: Mapped[str | None] = mapped_column(String(32))
 
     sections: Mapped[list["Section"]] = relationship(
         back_populates="document",
