@@ -33,7 +33,13 @@ async def _ingest(document_id: UUID) -> str:
 
     try:
         document = await use_case.execute(document_id)
-        logger.info(f"document {document_id} ingestion complete: {document.status}")
+        if document.error_message:
+            logger.warning(
+                f"document {document_id} ingestion complete: {document.status}"
+                f" ({document.error_message})"
+            )
+        else:
+            logger.info(f"document {document_id} ingestion complete: {document.status}")
         return document.status.value
     except Exception as e:
         logger.exception(f"document {document_id} ingestion failed: {e}")
