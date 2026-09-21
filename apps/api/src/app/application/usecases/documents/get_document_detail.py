@@ -12,7 +12,11 @@ class GetDocumentDetail:
     def __init__(self, uow_factory: UnitOfWorkFactory):
         self.uow_factory = uow_factory
 
-    async def execute(self, document_id: UUID) -> tuple[Document, list[Section]] | None:
-        """Get document and sections, or None if not found."""
+    async def execute(self, document_id: UUID) -> tuple[Document, list[Section], int] | None:
+        """Get document, sections and chunk count, or None if not found."""
         async with self.uow_factory() as uow:
-            return await uow.documents.get_with_sections(document_id)
+            detail = await uow.documents.get_with_sections(document_id)
+            if detail is None:
+                return None
+            document, sections = detail
+            return document, sections, await uow.chunks.count_for_document(document_id)

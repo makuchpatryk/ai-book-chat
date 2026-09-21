@@ -61,7 +61,8 @@ class FakeChunkSearch:
 
 
 class ChatUow:
-    def __init__(self, messages: FakeMessages) -> None:
+    def __init__(self, messages: FakeMessages, log: list[str]) -> None:
+        self.log = log
         self.conversations = FakeConversations()
         self.documents = FakeDocs()
         self.messages = messages
@@ -82,7 +83,7 @@ class ChatUow:
         return None
 
     async def rollback(self) -> None:
-        return None
+        self.log.append("rollback")
 
 
 class Embedder:
@@ -103,9 +104,11 @@ class Rewriter:
 class Generator:
     def __init__(self, fail_after: int | None = None) -> None:
         self.fail_after = fail_after
+        self.log: list[str] = []
 
     def stream(self, system: str, turns: list[Turn]) -> AsyncIterator[str]:
         async def _stream() -> AsyncIterator[str]:
+            self.log.append("generate")
             for i, token in enumerate(["Yes ", "[p.12]"]):
                 if self.fail_after is not None and i == self.fail_after:
                     raise RuntimeError("LLM 503")
@@ -116,7 +119,7 @@ class Generator:
 
 def build(generator: Generator) -> tuple[AskQuestion, FakeMessages]:
     messages = FakeMessages()
-    uow = ChatUow(messages)
+    uow = ChatUow(messages, generator.log)
     use_case = AskQuestion(
         uow_factory=lambda: uow,  # type: ignore[arg-type,return-value]
         rewriter=Rewriter(),
@@ -147,6 +150,14 @@ class TestAskQuestion:
         assert assistant.content == "Yes [p.12]"
         assert assistant.sources == sources.citations
         assert [c.chunk_id for c in assistant.sources] == [CHUNK.chunk_id]
+
+    async def test_db_transaction_ends_before_generation_starts(self) -> None:
+        generator = Generator()
+        use_case, _ = build(generator)
+
+        await collect(use_case.execute(CONVERSATION.id, "Is the whale white?"))
+
+        assert generator.log == ["rollback", "generate"]
 
     async def test_generator_failure_emits_answer_failed(self) -> None:
         use_case, messages = build(Generator(fail_after=1))

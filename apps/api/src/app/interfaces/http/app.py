@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import make_url
 
 from app.infrastructure.config.settings import get_settings
 from app.infrastructure.db.session import engine
@@ -24,7 +25,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     setup_logging(settings.log_level)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     logger.info("api starting", extra={"upload_dir": str(settings.upload_dir)})
-    logger.debug("database target", extra={"database_url": settings.database_url})
+    safe_url = make_url(settings.database_url).render_as_string(hide_password=True)
+    logger.debug("database target", extra={"database_url": safe_url})
     yield
     await engine.dispose()
     logger.info("api stopped")

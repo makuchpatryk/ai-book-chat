@@ -21,6 +21,8 @@ class RetrievalResult:
     scored_chunks: list[ScoredChunk]  # Full scored chunks with all metadata
     grounded: bool
     reason: str  # "no_chunks", "no_relevant_chunks", "rerank_degraded_no_match", or ""
+    reranked: bool = False  # False when the reranker failed and distance filtering was used
+    candidate_count: int = 0  # vector-search hits before the guard cut
 
 
 class RetrieveContext:
@@ -85,6 +87,7 @@ class RetrieveContext:
             for chunk, score in zip(chunks, scores)
         ]
 
+        reranked = scores[0] is not None
         outcome = guard_and_cut(scored_chunks, self.policy)
         if not outcome.chunks:
             return RetrievalResult(
@@ -92,6 +95,8 @@ class RetrieveContext:
                 scored_chunks=[],
                 grounded=False,
                 reason=outcome.reason or "",
+                reranked=reranked,
+                candidate_count=len(chunks),
             )
 
         # Convert scored chunks to citations
@@ -111,4 +116,6 @@ class RetrieveContext:
             scored_chunks=outcome.chunks,
             grounded=True,
             reason="",
+            reranked=reranked,
+            candidate_count=len(chunks),
         )

@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -275,6 +275,12 @@ class SqlChunkRepository(ChunkRepository):
         )
         rows = result.scalars().all()
         return [orm_chunk_to_entity(row) for row in rows]
+
+    async def count_for_document(self, document_id: UUID) -> int:
+        result = await self.session.execute(
+            select(func.count()).select_from(ChunkORM).where(ChunkORM.document_id == document_id)
+        )
+        return result.scalar_one()
 
 
 class SqlConversationRepository(ConversationRepository):

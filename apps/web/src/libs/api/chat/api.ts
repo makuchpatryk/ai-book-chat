@@ -1,4 +1,4 @@
-import { ApiError } from "@libs/api/client";
+import { readResponse } from "@libs/api/client";
 import { parseSse } from "@libs/api/sse";
 import type { ChatEvent } from "./types";
 
@@ -15,13 +15,7 @@ export async function* streamMessage(
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    const body: unknown = text ? JSON.parse(text) : null;
-    const detail =
-      typeof body === "object" && body !== null && "detail" in body
-        ? String((body as { detail: unknown }).detail)
-        : response.statusText;
-    throw new ApiError(response.status, `${response.status} ${detail}`, body);
+    await readResponse(response); // throws ApiError
   }
 
   if (!response.body) {

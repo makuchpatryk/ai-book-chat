@@ -14,14 +14,17 @@ export class ApiError extends Error {
   }
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
-    ...init,
-  });
-
+/** Parse the body (tolerating non-JSON, e.g. a proxy's HTML 502) and throw ApiError on failure. */
+export async function readResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
-  const body: unknown = text ? JSON.parse(text) : null;
+  let body: unknown = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+  }
 
   if (!response.ok) {
     const detail =
@@ -34,22 +37,18 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  return readResponse<T>(response);
+}
+
 export async function upload<T>(path: string, body: FormData): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     body,
   });
-
-  const text = await response.text();
-  const data: unknown = text ? JSON.parse(text) : null;
-
-  if (!response.ok) {
-    const detail =
-      typeof data === "object" && data !== null && "detail" in data
-        ? String((data as { detail: unknown }).detail)
-        : response.statusText;
-    throw new ApiError(response.status, `${response.status} ${detail}`, data);
-  }
-
-  return data as T;
+  return readResponse<T>(response);
 }

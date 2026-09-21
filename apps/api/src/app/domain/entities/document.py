@@ -83,6 +83,12 @@ class Document:
         self.error_message = None
         self.updated_at = datetime.utcnow()
 
+    def mark_queued(self) -> None:
+        """Back to PENDING for another ingestion run; restarts the stuck timer."""
+        self.status = DocumentStatus.PENDING
+        self.error_message = None
+        self.updated_at = datetime.utcnow()
+
     def mark_failed(self, reason: str) -> None:
         """Mark document as failed with a truncated error message."""
         self.status = DocumentStatus.FAILED

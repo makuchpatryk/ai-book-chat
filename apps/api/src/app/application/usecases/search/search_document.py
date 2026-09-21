@@ -19,6 +19,8 @@ class SearchOutcome:
     scored_chunks: list[ScoredChunk]
     grounded: bool
     reason: str
+    reranked: bool
+    candidate_count: int
 
 
 class SearchDocument:
@@ -60,4 +62,6 @@ class SearchDocument:
                 scored_chunks=result.scored_chunks,
                 grounded=result.grounded,
                 reason=result.reason,
+                reranked=result.reranked,
+                candidate_count=result.candidate_count,
             )

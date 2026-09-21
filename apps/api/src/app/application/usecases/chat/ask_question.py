@@ -126,6 +126,10 @@ class AskQuestion:
             else:
                 system_prompt = OUTSIDE_KNOWLEDGE_PROMPT
 
+            # End the read-only retrieval transaction so the pooled connection is
+            # released while the LLM streams (which can take tens of seconds).
+            await uow.rollback()
+
             # Stream generation
             answer_text = ""
             try:

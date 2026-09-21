@@ -17,12 +17,14 @@ export function useChatStream(conversationId: string) {
   const queryClient = useQueryClient();
 
   const flushBuffer = useCallback(() => {
-    if (textBufferRef.current) {
+    // Capture before clearing: React may run the updater later, after the reset.
+    const buffered = textBufferRef.current;
+    if (buffered) {
+      textBufferRef.current = "";
       setState((prev) => ({
         ...prev,
-        liveText: prev.liveText + textBufferRef.current,
+        liveText: prev.liveText + buffered,
       }));
-      textBufferRef.current = "";
     }
   }, []);
 
@@ -112,11 +114,16 @@ export function useChatStream(conversationId: string) {
     }
   }, [state.status, flushBuffer, syncMessages]);
 
+  // The route reuses this component across conversations: start each one clean,
+  // and stop the previous stream on switch or unmount so it can't write into it.
   useEffect(() => {
+    setState({ status: "idle", liveText: "", error: null, pendingUserText: null });
     return () => {
+      textBufferRef.current = "";
+      abortControllerRef.current?.abort();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [conversationId]);
 
   return {
     ...state,

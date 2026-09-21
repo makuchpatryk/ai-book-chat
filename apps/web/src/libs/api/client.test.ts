@@ -31,6 +31,30 @@ describe("request", () => {
     await expect(request("/health")).rejects.toThrow(ApiError);
     await expect(request("/health")).rejects.toThrow("503 database down");
   });
+
+  it("throws ApiError, not SyntaxError, on a non-JSON error page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        statusText: "Bad Gateway",
+        text: () => Promise.resolve("<html>502 Bad Gateway</html>"),
+      }),
+    );
+
+    await expect(request("/health")).rejects.toThrow("502 Bad Gateway");
+    await expect(request("/health")).rejects.toThrow(ApiError);
+  });
+
+  it("keeps the JSON content-type when the caller passes other headers", async () => {
+    stubFetch(200, {});
+
+    await request("/health", { headers: { "X-Trace": "1" } });
+
+    const headers = vi.mocked(fetch).mock.calls[0]?.[1]?.headers;
+    expect(headers).toEqual({ "Content-Type": "application/json", "X-Trace": "1" });
+  });
 });
 
 describe("upload", () => {

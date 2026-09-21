@@ -40,9 +40,9 @@ async def search(
         return SearchResponse(
             results=results,
             grounded=outcome.grounded,
-            reranked=True,  # assume reranker was used (would need to track this)
+            reranked=outcome.reranked,
             reason=outcome.reason if not outcome.grounded else None,
-            candidate_count=len(outcome.scored_chunks),
+            candidate_count=outcome.candidate_count,
         )
     except Exception as e:
         from app.domain.errors import DocumentNotFound, DocumentNotReady

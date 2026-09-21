@@ -81,13 +81,19 @@ class TestUploadDocument:
 
     async def test_duplicate_of_failed_document_is_re_enqueued(self, tmp_path: Path) -> None:
         existing = make_document(
-            content_hash=hashlib.sha256(PDF).hexdigest(), status=DocumentStatus.FAILED
+            content_hash=hashlib.sha256(PDF).hexdigest(),
+            status=DocumentStatus.FAILED,
+            error_message="parsing failed",
         )
-        use_case, _, queue = build(tmp_path, [existing])
+        use_case, factory, queue = build(tmp_path, [existing])
 
         document = await use_case.execute("again.pdf", stream(PDF))
 
         assert document is existing
+        assert existing.status == DocumentStatus.PENDING
+        assert existing.error_message is None
+        assert factory.uow.documents.saved == [existing]
+        assert factory.uow.commits == 1
         assert queue.ingest_requests == [existing.id]
         assert list(tmp_path.iterdir()) == []
 

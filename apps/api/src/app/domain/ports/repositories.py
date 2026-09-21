@@ -90,6 +90,10 @@ class ChunkRepository(Protocol):
         """List all chunks for a document in order."""
         ...
 
+    async def count_for_document(self, document_id: UUID) -> int:
+        """Count the chunks of a document."""
+        ...
+
 
 class ConversationRepository(Protocol):
     """Persistence port for conversations."""

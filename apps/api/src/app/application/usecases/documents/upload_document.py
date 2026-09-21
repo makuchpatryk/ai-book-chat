@@ -65,13 +65,16 @@ class UploadDocument:
 
             if existing:
                 await self.file_storage.delete(key)
-                if existing.status == DocumentStatus.FAILED:
-                    # Re-enqueue a FAILED duplicate
-                    await self.queue.enqueue(existing.id)
-                    return existing
-                else:
+                if existing.status != DocumentStatus.FAILED:
                     # Already processed or processing
                     raise DuplicateUpload()
+
+                # Re-enqueue a FAILED duplicate (PENDING committed first)
+                existing.mark_queued()
+                await uow.documents.save(existing)
+                await uow.commit()
+                await self.queue.enqueue(existing.id)
+                return existing
 
             # Create document entity
             document = Document(

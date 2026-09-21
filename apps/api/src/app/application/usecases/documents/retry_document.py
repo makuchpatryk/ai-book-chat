@@ -43,11 +43,11 @@ class RetryDocument:
                 else:
                     raise DocumentNotFound()
 
-            # Enqueue for re-ingestion
-            await self.queue.enqueue(document.id)
-
-            # Save document state (queue enqueue is best-effort)
+            # Commit PENDING before enqueueing, so the worker never reads the old
+            # state and a second retry click sees the document as processing.
+            document.mark_queued()
             await uow.documents.save(document)
             await uow.commit()
 
-            return document
+        await self.queue.enqueue(document.id)
+        return document

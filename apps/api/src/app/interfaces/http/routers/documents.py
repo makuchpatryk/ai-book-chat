@@ -13,7 +13,6 @@ from app.application.usecases.documents.list_documents import ListDocuments
 from app.application.usecases.documents.request_overview import RequestOverview
 from app.application.usecases.documents.retry_document import RetryDocument
 from app.application.usecases.documents.upload_document import UploadDocument
-from app.domain.errors import DocumentNotFound
 from app.interfaces.http.composition import (
     get_delete_document,
     get_get_cover,
@@ -69,7 +68,7 @@ async def get_document(
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
 
-    document, sections = result
+    document, sections, chunk_count = result
     doc_read = DocumentRead.model_validate(document)
     section_reads = [SectionRead.model_validate(s) for s in sections]
 
@@ -79,7 +78,7 @@ async def get_document(
         description_sections=[
             DescriptionSection(**s) for s in document.description_sections
         ],
-        chunk_count=len(sections),  # placeholder
+        chunk_count=chunk_count,
     )
 
 
@@ -88,14 +87,9 @@ async def retry_document(
     document_id: UUID,
     use_case: RetryDocument = Depends(get_retry_document),
 ) -> DocumentRead:
-    """Retry ingestion of a document."""
-    try:
-        document = await use_case.execute(document_id)
-        return DocumentRead.model_validate(document)
-    except DocumentNotFound:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    """Retry ingestion of a document. Domain errors map to 404/409 in errors.py."""
+    document = await use_case.execute(document_id)
+    return DocumentRead.model_validate(document)
 
 
 @router.get("/{document_id}/cover", status_code=status.HTTP_200_OK)
@@ -127,7 +121,7 @@ async def regenerate_overview(
     result = await detail_uc.execute(document_id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
-    document, _ = result
+    document, _, _ = result
     return DocumentRead.model_validate(document)
 
 
