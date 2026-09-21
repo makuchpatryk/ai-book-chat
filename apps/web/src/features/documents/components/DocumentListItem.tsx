@@ -8,6 +8,7 @@ import { useDeleteDocument } from "../hooks/useDeleteDocument";
 import { useRetryDocument } from "../hooks/useRetryDocument";
 import { Button } from "@libs/components/ui/button";
 import { DocumentCover } from "./DocumentCover";
+import { EmbeddingProgress } from "./EmbeddingProgress";
 import { toast } from "sonner";
 import type { Document } from "@libs/types";
 
@@ -64,6 +65,12 @@ export function DocumentListItem({ document }: { document: Document }) {
               )}
             </div>
           </div>
+          {document.status === "EMBEDDING" && document.total_chunks != null && (
+            <EmbeddingProgress
+              embedded={document.embedded_chunks ?? 0}
+              total={document.total_chunks}
+            />
+          )}
           {document.status === "FAILED" && document.error_message && (
             <div className="text-xs text-destructive mt-2">{document.error_message}</div>
           )}

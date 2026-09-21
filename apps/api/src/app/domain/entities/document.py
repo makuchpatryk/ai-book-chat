@@ -39,6 +39,8 @@ class Document:
     description_sections: list[dict[str, str]] = field(default_factory=list)
     overview_status: OverviewStatus | None = None
     cover_mime: str | None = None
+    embedded_chunks: int | None = None
+    total_chunks: int | None = None
 
     @property
     def has_cover(self) -> bool:
@@ -87,6 +89,13 @@ class Document:
         """Back to PENDING for another ingestion run; restarts the stuck timer."""
         self.status = DocumentStatus.PENDING
         self.error_message = None
+        self.updated_at = datetime.utcnow()
+
+    def record_embedding_progress(self, embedded: int, total: int) -> None:
+        """Track embedding progress; also restarts the stuck timer, so a long
+        but advancing run is never offered for retry."""
+        self.embedded_chunks = embedded
+        self.total_chunks = total
         self.updated_at = datetime.utcnow()
 
     def mark_failed(self, reason: str) -> None:

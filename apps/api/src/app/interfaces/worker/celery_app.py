@@ -34,6 +34,9 @@ celery_app.conf.update(
     # root logger — which is where our own StreamHandler writes, so every
     # in-task log line is swallowed by the recursion guard.
     worker_redirect_stdouts=False,
+    # acks_late + Redis: an unacked task is redelivered after this timeout, so it
+    # must outlast the longest task (process_document, 3 h) or books ingest twice.
+    broker_transport_options={"visibility_timeout": 4 * 3600},
 )
 
 celery_app.autodiscover_tasks(["app.interfaces.worker"])

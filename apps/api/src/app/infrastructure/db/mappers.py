@@ -54,6 +54,8 @@ def orm_document_to_entity(row: DocumentORM) -> Document:
         description_sections=row.description_sections or [],
         overview_status=OverviewStatus(row.overview_status) if row.overview_status else None,
         cover_mime=row.cover_mime,
+        embedded_chunks=row.embedded_chunks,
+        total_chunks=row.total_chunks,
     )
 
 
@@ -76,6 +78,8 @@ def entity_document_to_orm(entity: Document, orm_row: DocumentORM | None = None)
         orm_row.description_sections = entity.description_sections or None
         orm_row.overview_status = entity.overview_status.value if entity.overview_status else None
         orm_row.cover_mime = entity.cover_mime
+        orm_row.embedded_chunks = entity.embedded_chunks
+        orm_row.total_chunks = entity.total_chunks
         orm_row.updated_at = _as_utc(entity.updated_at)
         return orm_row
     else:
@@ -97,6 +101,8 @@ def entity_document_to_orm(entity: Document, orm_row: DocumentORM | None = None)
             description_sections=entity.description_sections or None,
             overview_status=entity.overview_status.value if entity.overview_status else None,
             cover_mime=entity.cover_mime,
+            embedded_chunks=entity.embedded_chunks,
+            total_chunks=entity.total_chunks,
             created_at=_as_utc(entity.created_at),
             updated_at=_as_utc(entity.updated_at),
         )

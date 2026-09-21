@@ -42,3 +42,18 @@ it("shows the placeholder when the document has no cover", () => {
 
   expect(screen.getByLabelText("No cover")).toBeInTheDocument();
 });
+
+it("shows embedding progress while the document is embedding", () => {
+  renderItem(makeDocument({ status: "EMBEDDING", embedded_chunks: 48, total_chunks: 200 }));
+
+  const bar = screen.getByRole("progressbar", { name: "Embedding progress" });
+  expect(bar).toHaveAttribute("aria-valuenow", "48");
+  expect(bar).toHaveAttribute("aria-valuemax", "200");
+  expect(screen.getByText("Embedding 48 / 200 chunks (24%)")).toBeInTheDocument();
+});
+
+it("hides the progress bar once the document is ready", () => {
+  renderItem(makeDocument({ status: "READY", embedded_chunks: 200, total_chunks: 200 }));
+
+  expect(screen.queryByRole("progressbar")).toBeNull();
+});

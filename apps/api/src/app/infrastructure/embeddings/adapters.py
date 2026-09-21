@@ -5,6 +5,8 @@ import httpx
 from app.domain.ports.llm import Embedder
 from app.infrastructure.config.settings import Settings
 
+SECONDS_PER_TEXT = 30.0
+
 
 class OllamaEmbedder(Embedder):
     """Ollama-based async embedder."""
@@ -14,18 +16,16 @@ class OllamaEmbedder(Embedder):
         self.model = model
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embed multiple texts using Ollama."""
+        """Embed multiple texts using Ollama, in one request."""
         async with httpx.AsyncClient() as client:
-            embeddings = []
-            for text in texts:
-                response = await client.post(
-                    f"{self.base_url}/api/embed",
-                    json={"model": self.model, "input": text},
-                    timeout=30.0,
-                )
-                response.raise_for_status()
-                data = response.json()
-                embeddings.append(data["embeddings"][0])
+            response = await client.post(
+                f"{self.base_url}/api/embed",
+                json={"model": self.model, "input": texts},
+                # CPU-only Ollama needs seconds per text; scale with the batch.
+                timeout=SECONDS_PER_TEXT * max(1, len(texts)),
+            )
+            response.raise_for_status()
+            embeddings: list[list[float]] = response.json()["embeddings"]
             return embeddings
 
 

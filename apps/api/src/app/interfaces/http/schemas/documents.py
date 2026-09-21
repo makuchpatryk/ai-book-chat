@@ -34,6 +34,8 @@ class DocumentRead(BaseModel):
     topics: list[str] = []
     overview_status: OverviewStatus | None = None
     has_cover: bool = False
+    embedded_chunks: int | None = None
+    total_chunks: int | None = None
 
 
 class SectionRead(BaseModel):

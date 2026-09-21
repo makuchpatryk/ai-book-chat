@@ -16,6 +16,8 @@ export function makeDocument(overrides: Partial<Document> = {}): Document {
     topics: [],
     overview_status: null,
     has_cover: false,
+    embedded_chunks: null,
+    total_chunks: null,
     ...overrides,
   };
 }

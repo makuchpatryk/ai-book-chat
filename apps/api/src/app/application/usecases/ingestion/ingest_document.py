@@ -16,6 +16,11 @@ from app.domain.values.status import DocumentStatus
 logger = logging.getLogger(__name__)
 
 
+def _describe(error: Exception) -> str:
+    """Error text for the UI; some exceptions (e.g. httpx timeouts) have an empty str()."""
+    return str(error) or type(error).__name__
+
+
 class IngestDocument:
     """Use case: ingest document through parsing, extraction, embedding."""
 
@@ -65,7 +70,7 @@ class IngestDocument:
                 except Exception as e:
                     logger.warning(f"failed to render cover for {document.id}: {e}")
             except Exception as e:
-                document.mark_failed(f"parsing failed: {str(e)}")
+                document.mark_failed(f"parsing failed: {_describe(e)}")
                 await uow.documents.save(document)
                 await uow.commit()
                 return document
@@ -92,7 +97,7 @@ class IngestDocument:
                     for s in sections_list
                 ]
             except Exception as e:
-                document.mark_failed(f"section detection failed: {str(e)}")
+                document.mark_failed(f"section detection failed: {_describe(e)}")
                 await uow.documents.save(document)
                 await uow.commit()
                 return document
@@ -129,7 +134,7 @@ class IngestDocument:
                     for spec in chunk_specs
                 ]
             except Exception as e:
-                document.mark_failed(f"chunking failed: {str(e)}")
+                document.mark_failed(f"chunking failed: {_describe(e)}")
                 await uow.documents.save(document)
                 await uow.commit()
                 return document
@@ -137,6 +142,7 @@ class IngestDocument:
             # Step 4: Embed chunks (PARSING → EMBEDDING)
             try:
                 document.status = DocumentStatus.EMBEDDING
+                document.record_embedding_progress(0, len(chunks))
                 await uow.documents.save(document)
                 await uow.commit()
 
@@ -150,8 +156,13 @@ class IngestDocument:
                         )
                     for chunk, vector in zip(group, vectors):
                         chunk.embedding = vector
+
+                    # Commit per batch so the UI can poll a live progress bar.
+                    document.record_embedding_progress(start + len(group), len(chunks))
+                    await uow.documents.save(document)
+                    await uow.commit()
             except Exception as e:
-                document.mark_failed(f"embedding failed: {str(e)}")
+                document.mark_failed(f"embedding failed: {_describe(e)}")
                 await uow.documents.save(document)
                 await uow.commit()
                 return document
@@ -187,7 +198,7 @@ class IngestDocument:
                     except Exception as e:
                         logger.error(f"failed to enqueue overview for {document_id}: {e}")
             except Exception as e:
-                document.mark_failed(f"persistence failed: {str(e)}")
+                document.mark_failed(f"persistence failed: {_describe(e)}")
                 await uow.documents.save(document)
                 await uow.commit()
                 return document

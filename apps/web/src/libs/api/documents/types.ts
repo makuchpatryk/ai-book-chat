@@ -30,6 +30,9 @@ export interface Document {
   topics: string[];
   overview_status: OverviewStatus | null;
   has_cover: boolean;
+  /** Embedding progress; null until ingestion reaches EMBEDDING. */
+  embedded_chunks: number | null;
+  total_chunks: number | null;
 }
 
 export interface DocumentDetail extends Document {

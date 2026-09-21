@@ -58,7 +58,7 @@ class Settings(BaseSettings):
 
     # Embeddings — local Ollama, or the deterministic fake when it is unreachable
     embedding_dimensions: int = 768  # width of chunks.embedding; see EMBEDDING_DIMENSIONS
-    embedding_batch_size: int = 100
+    embedding_batch_size: int = 16  # also the progress-bar step; ~40 s per batch on CPU
     ollama_base_url: str = "http://localhost:11434"
     ollama_embedding_model: str = "nomic-embed-text"  # 768d, matches the column
 

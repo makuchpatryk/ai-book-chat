@@ -16,7 +16,10 @@ def ping() -> str:
     return "pong"
 
 
-@shared_task(name="app.interfaces.worker.tasks.process_document", acks_late=True, time_limit=1800)
+# 3 h: CPU-only embedding runs ~2.5 s per chunk, so a big book takes well over 30 min.
+@shared_task(
+    name="app.interfaces.worker.tasks.process_document", acks_late=True, time_limit=3 * 3600
+)
 def process_document(document_id: str) -> str:
     """Ingest an uploaded PDF. Returns the document's final status."""
     return asyncio.run(_ingest(UUID(document_id)))

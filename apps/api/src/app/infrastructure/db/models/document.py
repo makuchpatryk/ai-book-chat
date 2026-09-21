@@ -58,6 +58,9 @@ class Document(Base):
     overview_status: Mapped[str | None] = mapped_column(String(16))
     cover_image: Mapped[bytes | None] = deferred(mapped_column(sqlalchemy.LargeBinary))
     cover_mime: Mapped[str | None] = mapped_column(String(32))
+    # Embedding progress; NULL until ingestion reaches EMBEDDING.
+    embedded_chunks: Mapped[int | None]
+    total_chunks: Mapped[int | None]
 
     sections: Mapped[list["Section"]] = relationship(
         back_populates="document",

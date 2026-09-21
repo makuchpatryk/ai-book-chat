@@ -18,6 +18,8 @@ const mockDocuments: Document[] = [
     topics: ["testing", "mocks"],
     overview_status: "ready",
     has_cover: true,
+    embedded_chunks: 100,
+    total_chunks: 100,
   },
 ];
 
@@ -122,6 +124,8 @@ export const handlers = [
       topics: [],
       overview_status: null,
       has_cover: false,
+      embedded_chunks: null,
+      total_chunks: null,
     };
 
     return HttpResponse.json(newDoc, { status: 201 });
