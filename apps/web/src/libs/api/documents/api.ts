@@ -1,4 +1,4 @@
-import { request, upload } from "@/api/client";
+import { request, upload } from "@libs/api/client";
 import type { Document, DocumentDetail } from "./types";
 
 export async function listDocuments(): Promise<Document[]> {

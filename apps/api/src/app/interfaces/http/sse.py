@@ -61,11 +61,24 @@ async def with_heartbeat(
     Yields SSE frames (strings). If no event arrives within interval seconds,
     yields a heartbeat ping (`: ping` comment).
     """
-    while True:
-        try:
-            event = await asyncio.wait_for(source.__anext__(), timeout=interval)
+    # `asyncio.wait_for` would cancel `source.__anext__()` on timeout, killing the
+    # generator mid-flight (the stream would then end with no answer). Keep the
+    # pending task alive across heartbeats and only wait on it.
+    pending: asyncio.Future[AnswerEvent] | None = None
+    try:
+        while True:
+            if pending is None:
+                pending = asyncio.ensure_future(source.__anext__())
+            done, _ = await asyncio.wait({pending}, timeout=interval)
+            if not done:
+                yield ": ping\n\n"
+                continue
+            task, pending = pending, None
+            try:
+                event = task.result()
+            except StopAsyncIteration:
+                break
             yield to_frame(event)
-        except asyncio.TimeoutError:
-            yield ": ping\n\n"
-        except StopAsyncIteration:
-            break
+    finally:
+        if pending is not None:
+            pending.cancel()

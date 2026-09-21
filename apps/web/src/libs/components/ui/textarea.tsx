@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@libs/utils/utils";
 
 type TextareaProps = React.ComponentProps<"textarea">;
 

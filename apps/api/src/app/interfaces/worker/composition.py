@@ -1,6 +1,7 @@
 """Worker-side composition (async UoW factory + use cases)."""
 
 from app.application.usecases.ingestion.ingest_document import IngestDocument
+from app.infrastructure.embeddings.adapters import build_embedder
 from app.infrastructure.config.settings import get_settings
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from app.infrastructure.pdf.pymupdf_extractor import PyMuPdfExtractor
@@ -27,6 +28,8 @@ def get_ingest_document() -> IngestDocument:
         uow_factory,
         pdf_extractor,
         token_counter,
+        build_embedder(settings),
+        settings.embedding_batch_size,
         settings.chunk_target_tokens,
         settings.chunk_overlap_ratio,
     )

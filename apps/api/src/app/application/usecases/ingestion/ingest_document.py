@@ -4,6 +4,7 @@ from uuid import UUID
 
 from app.domain.entities import Chunk, Document, Section
 from app.domain.errors import SourceFileMissing
+from app.domain.ports.llm import Embedder
 from app.domain.ports.storage import PdfExtractor, TokenCounter
 from app.domain.ports.unit_of_work import UnitOfWorkFactory
 from app.domain.services.chunking import chunk_document, PageText as ChunkingPageText
@@ -19,12 +20,16 @@ class IngestDocument:
         uow_factory: UnitOfWorkFactory,
         pdf_extractor: PdfExtractor,
         token_counter: TokenCounter,
+        embedder: Embedder,
+        embedding_batch_size: int,
         chunk_target_tokens: int,
         chunk_overlap_ratio: float,
     ):
         self.uow_factory = uow_factory
         self.pdf_extractor = pdf_extractor
         self.token_counter = token_counter
+        self.embedder = embedder
+        self.embedding_batch_size = embedding_batch_size
         self.chunk_target_tokens = chunk_target_tokens
         self.chunk_overlap_ratio = chunk_overlap_ratio
 
@@ -87,6 +92,8 @@ class IngestDocument:
                 chunk_specs = chunk_document(
                     pages_for_chunking,
                     sections,
+                    self.token_counter.encode,
+                    self.token_counter.decode,
                     size=self.chunk_target_tokens,
                     overlap_ratio=self.chunk_overlap_ratio,
                 )
@@ -111,7 +118,29 @@ class IngestDocument:
                 await uow.commit()
                 return document
 
-            # Step 4: Mark ready (PARSING → EMBEDDING → READY)
+            # Step 4: Embed chunks (PARSING → EMBEDDING)
+            try:
+                document.status = DocumentStatus.EMBEDDING
+                await uow.documents.save(document)
+                await uow.commit()
+
+                batch = self.embedding_batch_size
+                for start in range(0, len(chunks), batch):
+                    group = chunks[start : start + batch]
+                    vectors = await self.embedder.embed([c.content for c in group])
+                    if len(vectors) != len(group):
+                        raise ValueError(
+                            f"embedder returned {len(vectors)} vectors for {len(group)} chunks"
+                        )
+                    for chunk, vector in zip(group, vectors):
+                        chunk.embedding = vector
+            except Exception as e:
+                document.mark_failed(f"embedding failed: {str(e)}")
+                await uow.documents.save(document)
+                await uow.commit()
+                return document
+
+            # Step 5: Mark ready (EMBEDDING → READY)
             try:
                 document.mark_ready(extracted.page_count, extracted.title, strategy.value)
 

@@ -16,3 +16,4 @@ class Chunk:
     page_end: int
     token_count: int
     order_index: int
+    embedding: list[float] | None = None

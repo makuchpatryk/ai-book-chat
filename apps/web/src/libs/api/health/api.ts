@@ -1,4 +1,4 @@
-import { request } from "@/api/client";
+import { request } from "@libs/api/client";
 import type { HealthResponse } from "./types";
 
 /**

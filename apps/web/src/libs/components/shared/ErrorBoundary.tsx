@@ -1,5 +1,5 @@
 import React from "react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@libs/components/ui/alert"
 import { AlertTriangle } from "lucide-react"
 
 interface ErrorBoundaryProps {

@@ -59,6 +59,7 @@ class Document:
         self.page_count = page_count
         self.title = title
         self.chunking_strategy = strategy
+        self.error_message = None
         self.updated_at = datetime.utcnow()
 
     def mark_failed(self, reason: str) -> None:

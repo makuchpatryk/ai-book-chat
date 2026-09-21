@@ -44,7 +44,7 @@ def build_adapters(settings: Settings) -> tuple[AnswerGenerator, QueryRewriter, 
         )
         generator: AnswerGenerator = OpenAIGenerator(client, settings.chat_model, settings.chat_max_tokens)
         rewriter: QueryRewriter = OpenAIRewriter(client, settings.chat_rewrite_model)
-        reranker: Reranker = OpenAIReranker(client, settings.rerank_model)
+        reranker: Reranker = OpenAIReranker(client, settings.rerank_model, settings.rerank_max_tokens)
     else:
         generator = FakeGenerator()
         rewriter = FakeRewriter()

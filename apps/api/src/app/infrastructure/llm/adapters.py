@@ -1,5 +1,8 @@
 """LLM adapter implementations."""
 
+import json
+import logging
+import re
 from collections.abc import AsyncIterator
 
 from openai import AsyncOpenAI
@@ -7,6 +10,37 @@ from openai import AsyncOpenAI
 from app.domain.ports.llm import AnswerGenerator, QueryRewriter, Reranker
 from app.domain.values.messages import Turn
 from app.infrastructure.config.settings import Settings
+
+
+logger = logging.getLogger(__name__)
+
+REWRITE_PROMPT = """Rewrite the user's latest message as a standalone question that makes sense
+without the conversation history. Resolve pronouns and implicit references against the earlier
+turns. Do not answer it. Return only the rewritten question."""
+
+SCORING_PROMPT = """You score passages from a single book for relevance to a reader's question.
+For each numbered passage return an integer 0-10:
+  0-2  unrelated to the question
+  3-5  same topic, does not answer the question
+  6-8  contains part of the answer
+  9-10 directly answers the question
+Judge only the passage text. Never infer content that is not present.
+Return one score per passage, in the order given.
+Reply with JSON only, shaped {"passages": [{"index": 0, "score": 7}]}, one entry per passage, \
+using the passage's bracketed number as "index"."""
+
+_JSON_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
+
+
+def _extract_json_object(text: str) -> dict:
+    """Parse the JSON object in `text`, tolerating markdown fences and prose around it."""
+    fence = _JSON_FENCE.search(text)
+    if fence:
+        text = fence.group(1)
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        raise ValueError(f"no JSON object in response: {text[:200]!r}")
+    return json.loads(text[start : end + 1])
 
 
 class OpenAIGenerator(AnswerGenerator):
@@ -24,13 +58,15 @@ class OpenAIGenerator(AnswerGenerator):
             messages.append({"role": turn.role.value, "content": turn.content})
 
         async def _stream() -> AsyncIterator[str]:
-            async with self.client.messages.stream(
+            stream = await self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
                 messages=messages,
-            ) as stream:
-                async for text in stream.text_stream:
-                    yield text
+                stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
 
         return _stream()
 
@@ -56,18 +92,31 @@ class OpenAIRewriter(QueryRewriter):
         self.model = model
 
     async def rewrite(self, question: str, history: list[Turn]) -> str:
-        """Rewrite question based on history."""
-        messages = []
-        for turn in history[-4:]:
-            messages.append({"role": turn.role.value, "content": turn.content})
-        messages.append({"role": "user", "content": question})
+        """Make a follow-up question standalone. Returns it unchanged on any doubt."""
+        # First turn: nothing to resolve, and an LLM call can only make it worse.
+        if not history:
+            return question
 
-        response = await self.client.messages.create(
-            model=self.model,
-            max_tokens=256,
-            messages=messages,
+        history_text = "\n".join(
+            f"{'User' if turn.role.value == 'user' else 'Assistant'}: {turn.content}"
+            for turn in history[-4:]
         )
-        return response.content[0].text
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            max_tokens=512,
+            messages=[
+                {"role": "system", "content": REWRITE_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"{history_text}\n\nLatest question: {question}",
+                },
+            ],
+        )
+        result = (response.choices[0].message.content or "").strip()
+        if not result or len(result) > 500:
+            logger.warning("rewrite produced empty or oversized result, using original")
+            return question
+        return result
 
 
 class FakeRewriter(QueryRewriter):
@@ -79,33 +128,29 @@ class FakeRewriter(QueryRewriter):
 
 
 class OpenAIReranker(Reranker):
-    """OpenAI-compatible passage reranker."""
+    """OpenAI-compatible passage reranker (scores 0-10, one call for all passages)."""
 
-    def __init__(self, client: AsyncOpenAI, model: str):
+    def __init__(self, client: AsyncOpenAI, model: str, max_tokens: int):
         self.client = client
         self.model = model
+        self.max_tokens = max_tokens
 
     async def score(self, query: str, passages: list[str]) -> list[int]:
-        """Score passages for relevance."""
-        prompt = f"Query: {query}\n\nRank by relevance (0-100):\n"
-        for i, p in enumerate(passages):
-            prompt += f"{i}. {p[:100]}\n"
-
-        response = await self.client.messages.create(
+        """Score passages 0-10 in input order. Raises if the reply is unusable."""
+        numbered = "\n".join(f"[{i}] {p[:1200]}" for i, p in enumerate(passages))
+        response = await self.client.chat.completions.create(
             model=self.model,
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}],
+            max_tokens=self.max_tokens,
+            messages=[
+                {"role": "system", "content": SCORING_PROMPT},
+                {"role": "user", "content": f"{query}\n\n{numbered}"},
+            ],
         )
-        text = response.content[0].text
-        scores = []
-        for line in text.split("\n"):
-            if ": " in line:
-                try:
-                    score = int(line.split(": ")[1].split()[0])
-                    scores.append(max(0, min(100, score)))
-                except (ValueError, IndexError):
-                    scores.append(0)
-        return scores + [0] * (len(passages) - len(scores))
+        payload = _extract_json_object(response.choices[0].message.content or "")
+        by_index = {int(p["index"]): int(p["score"]) for p in payload["passages"]}
+        if set(by_index) != set(range(len(passages))):
+            raise ValueError(f"rerank indices {sorted(by_index)} != expected 0..{len(passages) - 1}")
+        return [max(0, min(10, by_index[i])) for i in range(len(passages))]
 
 
 class FakeReranker(Reranker):
@@ -137,4 +182,4 @@ def build_reranker(settings: Settings) -> Reranker:
     if not settings.llm_token:
         return FakeReranker()
     client = AsyncOpenAI(api_key=settings.llm_token, base_url=settings.llm_base_url)
-    return OpenAIReranker(client, settings.rerank_model)
+    return OpenAIReranker(client, settings.rerank_model, settings.rerank_max_tokens)

@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import type { DocumentStatus } from "@/types";
+import { Badge } from "@libs/components/ui/badge";
+import type { DocumentStatus } from "@libs/types";
 
 export function StatusBadge({ status }: { status: DocumentStatus }) {
   const isProcessing = ["PENDING", "PARSING", "EMBEDDING"].includes(status);

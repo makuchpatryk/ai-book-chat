@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSse } from "@/api/sse";
+import { parseSse } from "@libs/api/sse";
 
 function streamFromString(str: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();

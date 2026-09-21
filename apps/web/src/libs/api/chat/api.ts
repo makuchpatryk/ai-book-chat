@@ -1,5 +1,5 @@
-import { ApiError } from "@/api/client";
-import { parseSse } from "@/api/sse";
+import { ApiError } from "@libs/api/client";
+import { parseSse } from "@libs/api/sse";
 import type { ChatEvent } from "./types";
 
 export async function* streamMessage(

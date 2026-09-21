@@ -1,4 +1,4 @@
-import { request } from "@/api/client";
+import { request } from "@libs/api/client";
 import type { Conversation, Message } from "./types";
 
 export async function listConversations(documentId: string): Promise<Conversation[]> {

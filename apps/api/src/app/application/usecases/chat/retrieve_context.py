@@ -1,5 +1,6 @@
 """Retrieval context: embed → search → rerank → guard."""
 
+import logging
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -8,6 +9,8 @@ from app.domain.ports.unit_of_work import UnitOfWork
 from app.domain.services.relevance import guard_and_cut
 from app.domain.values.policies import RetrievalPolicy
 from app.domain.values.retrieval import Citation, RetrievedChunk, ScoredChunk
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,20 +58,16 @@ class RetrieveContext:
                 citations=[], scored_chunks=[], grounded=False, reason="no_chunks"
             )
 
-        # Step 3: Rerank (best-effort; degradation is acceptable)
+        # Step 3: Rerank (best-effort). On failure scores are None and the guard
+        # falls back to filtering by vector distance.
         passages = [chunk.content for chunk in chunks]
         try:
-            scores = await self.reranker.score(query, passages)
-            scored = [
-                (chunk, float(scores[i]))
-                for i, chunk in enumerate(chunks)
-            ]
+            scores: list[int | None] = list(await self.reranker.score(query, passages))
+            if len(scores) != len(chunks):
+                raise ValueError("reranker returned wrong number of scores")
         except Exception:
-            # Fall back to inverse distance scoring
-            scored = [
-                (chunk, 1.0 - min(chunk.distance, 1.0))
-                for chunk in chunks
-            ]
+            logger.warning("rerank failed, degrading to distance filter", exc_info=True)
+            scores = [None] * len(chunks)
 
         # Step 4: Guard and cut (pure logic)
         scored_chunks = [
@@ -81,9 +80,9 @@ class RetrieveContext:
                     page_end=chunk.page_end,
                     section_title=chunk.section_title,
                 ),
-                score=int(score * 100) if score else 0,
+                score=score,
             )
-            for chunk, score in scored
+            for chunk, score in zip(chunks, scores)
         ]
 
         outcome = guard_and_cut(scored_chunks, self.policy)

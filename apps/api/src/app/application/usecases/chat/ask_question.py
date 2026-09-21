@@ -12,8 +12,18 @@ from app.domain.values.policies import ChatPolicy, RetrievalPolicy
 from app.domain.values.status import MessageRole
 from app.application.usecases.chat.retrieve_context import RetrieveContext
 
-ANSWER_PROMPT = "You are a helpful assistant. Answer based on the provided context."
-OUTSIDE_KNOWLEDGE_PROMPT = "You are a helpful assistant. Answer the question directly."
+ANSWER_PROMPT = """You answer questions about one book. Ground the answer in the passages
+provided and cite the page for every claim drawn from them, inline, as [p.N] — use the page
+range given with each passage. Where the passages only partly answer the question, say which
+part the book covers, then add what you know from outside it, clearly marked as not from the
+book (e.g. "Not in the book: ..."). Never present outside knowledge as if it came from the
+passages, and never invent a page number for it. Write an analytical answer: explain the
+reasoning the text supports, not just a one-line lookup. Answer in the language of the question."""
+
+OUTSIDE_KNOWLEDGE_PROMPT = """You answer questions about one book, but retrieval found nothing
+relevant in it for this question. Open by stating plainly that the book does not cover this,
+then answer from your own general knowledge. Never cite pages and never attribute any claim to
+the book. Say when you are unsure rather than guessing. Answer in the language of the question."""
 
 
 class AskQuestion:
@@ -54,10 +64,21 @@ class AskQuestion:
                 yield AnswerFailed(detail="document not ready for chat")
                 return
 
-            # Get recent turns for context
+            # Persist the user's message now, in its own transaction, so it
+            # survives a failed generation and is in the history of later turns.
+            # History is read first so the new question is not sent twice.
             history = await uow.messages.recent_turns(
                 conversation_id, limit=self.chat_policy.history_turns
             )
+            user_msg = Message(
+                id=uuid4(),
+                conversation_id=conversation_id,
+                role=MessageRole.USER,
+                content=question,
+                order_index=await uow.messages.next_order_index(conversation_id),
+            )
+            await uow.messages.add(user_msg)
+            await uow.commit()
 
             # Rewrite question (best-effort; failure returns original)
             try:
@@ -95,8 +116,8 @@ class AskQuestion:
             # Build system prompt
             if retrieval.grounded:
                 context_text = "\n\n".join(
-                    f"[Page {c.page_start}-{c.page_end}] {c.snippet}"
-                    for c in citations
+                    f"[Page {sc.chunk.page_start}-{sc.chunk.page_end}] {sc.chunk.content}"
+                    for sc in retrieval.scored_chunks
                 )
                 system_prompt = f"{ANSWER_PROMPT}\n\nContext from the document:\n{context_text}"
             else:

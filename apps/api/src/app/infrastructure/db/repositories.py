@@ -211,6 +211,7 @@ class SqlChunkRepository(ChunkRepository):
                 page_end=c.page_end,
                 token_count=c.token_count,
                 order_index=c.order_index,
+                embedding=c.embedding,
             )
             for c in chunks
         ]
@@ -228,6 +229,7 @@ class SqlChunkRepository(ChunkRepository):
                 page_end=c.page_end,
                 token_count=c.token_count,
                 order_index=c.order_index,
+                embedding=c.embedding,
             )
             for c in chunks
         ]

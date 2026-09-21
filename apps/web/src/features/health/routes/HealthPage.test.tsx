@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { HealthPage } from "@/routes/HealthPage";
+import { HealthPage } from "./HealthPage";
 
 afterEach(() => {
   vi.unstubAllGlobals();
