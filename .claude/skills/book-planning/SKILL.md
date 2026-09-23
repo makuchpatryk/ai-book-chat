@@ -1,7 +1,7 @@
 ---
 name: book-planning
 description: Create detailed implementation plans when user explicitly requests. Triggers on "plan", "design", "spec out", "let's design", "create a plan" — whenever user wants structured guidance before starting work. Produces comprehensive markdown spec covering steps, architecture, risks, trade-offs, file changes, APIs, schema, dependencies, tests, success criteria, and metrics. Explores codebase first to validate assumptions. Grills user relentlessly to zero uncertainty before planning.
-compatibility: Requires Explore agent for codebase search
+compatibility: Requires Explore agent for codebase search and Agent tool access to spawn an independent Haiku-model agent
 ---
 
 ## When to Use This Skill
@@ -24,19 +24,26 @@ Before exploring code or writing any plan, interview user relentlessly until you
 
 Don't assume—**ask until you're certain**. If user gives vague answers, drill deeper. Ask follow-ups, propose scenarios, stress-test assumptions. This usually takes 5-10 questions. Stop only when you understand the problem deeply enough to spot risks and trade-offs.
 
-### Phase 2: Explore Codebase
+### Phase 2: Parallel Dual-Track Draft (Explore + Plan)
 
-Use Explore agent (medium breadth) to understand:
-- Project structure and naming conventions
-- Relevant existing code patterns (similar features, auth patterns, data models)
-- Framework/tool versions and configuration
-- Existing similar implementations (to avoid reinventing)
+Run two full, independent tracks in parallel — same message, single response block:
 
-Focus exploration on: "What exists today that's related to this task?" Not everything—just enough to make informed architectural choices.
+**Track A (you, main agent):**
+1. Use Explore agent (medium breadth) to understand:
+   - Project structure and naming conventions
+   - Relevant existing code patterns (similar features, auth patterns, data models)
+   - Framework/tool versions and configuration
+   - Existing similar implementations (to avoid reinventing)
+   Focus on: "What exists today that's related to this task?"
+2. Write your own draft plan (see Phase 3 template) from these findings.
+
+**Track B (independent Haiku agent):** Spawn via Agent tool with `model: "haiku"`, `subagent_type: "general-purpose"` (fresh agent, not a fork — it must not see your exploration or draft plan, or its "independent opinion" is worthless). In the prompt, give it verbatim the grilled requirements from Phase 1 (problem scope, success criteria, constraints, priorities, technical constraints) and instruct it to, on its own: explore the codebase itself, then write a complete draft plan using the Phase 3 template. It must not talk to the user — it works from the requirements you hand it only.
+
+Do not let either track see the other's output while in progress. Wait for both to finish before Phase 4.
 
 ### Phase 3: Write Comprehensive Plan
 
-Structure the plan markdown as follows. Save to `specs/<task-name>.md`.
+Structure the plan markdown as follows. This is the template both Track A and Track B use for their draft. Only the final, reconciled plan (Phase 4) gets saved to `specs/<task-name>.md`.
 
 #### Template Structure
 
@@ -130,6 +137,15 @@ Any assumptions still uncertain? List them:
 
 (These should be empty or near-empty after grilling—but if something remains genuinely unclear, call it out explicitly.)
 ```
+
+### Phase 4: Reconcile Track A and Track B, Confirm with User
+
+Once both drafts are done:
+
+1. Diff the two plans section by section (scope, architecture/design decisions, implementation steps, risks, alternatives considered). Ignore wording differences — only substantive disagreements matter (different approach chosen, a risk one caught and the other missed, different step ordering, different scope boundary, etc).
+2. For any difference that is a verifiable fact about the codebase (e.g. "this pattern already exists at path X" vs "it doesn't"), verify it yourself directly — grep/read the actual file — before doing anything else. Never guess, never pick a side because it "sounds more likely." If verification resolves the difference, silently take the correct side and don't bother the user with it.
+3. For every remaining real disagreement that is a judgment call (not resolvable by looking at code), ask the user **one separate `AskUserQuestion` per disagreement**. Present both options neutrally — what Track A proposed and what Track B proposed — with the actual trade-off, and no recommendation unless you've verified one side is factually wrong.
+4. Build the final plan using the user's choices (plus your own verified corrections from step 2). Save only this final, reconciled plan to `specs/<task-name>.md` — never save the two intermediate drafts.
 
 ## Key Principles
 
