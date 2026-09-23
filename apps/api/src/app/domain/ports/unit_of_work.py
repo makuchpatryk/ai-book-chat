@@ -7,6 +7,7 @@ from app.domain.ports.repositories import (
     ConversationRepository,
     DocumentRepository,
     MessageRepository,
+    QuizRepository,
     SectionRepository,
 )
 
@@ -19,6 +20,7 @@ class UnitOfWork(Protocol):
     chunks: ChunkRepository
     conversations: ConversationRepository
     messages: MessageRepository
+    quizzes: QuizRepository
 
     async def __aenter__(self) -> "UnitOfWork":
         """Enter async context."""

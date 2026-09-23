@@ -82,6 +82,10 @@ class IngestionQueue(Protocol):
         """Enqueue overview generation for a document."""
         ...
 
+    async def enqueue_quiz(self, document_id: UUID) -> None:
+        """Enqueue quiz generation for a document."""
+        ...
+
 
 class PdfExtractor(Protocol):
     """Port for extracting text from PDFs."""

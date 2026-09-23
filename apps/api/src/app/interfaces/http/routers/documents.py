@@ -9,16 +9,22 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from app.application.usecases.documents.delete_document import DeleteDocument
 from app.application.usecases.documents.get_cover import GetCover
 from app.application.usecases.documents.get_document_detail import GetDocumentDetail
+from app.application.usecases.documents.get_quiz import GetQuiz
 from app.application.usecases.documents.list_documents import ListDocuments
+from app.application.usecases.documents.regenerate_quiz import RegenerateQuiz
 from app.application.usecases.documents.request_overview import RequestOverview
+from app.application.usecases.documents.request_quiz import RequestQuiz
 from app.application.usecases.documents.retry_document import RetryDocument
 from app.application.usecases.documents.upload_document import UploadDocument
 from app.interfaces.http.composition import (
     get_delete_document,
     get_get_cover,
     get_get_document_detail,
+    get_get_quiz,
     get_list_documents,
+    get_regenerate_quiz,
     get_request_overview,
+    get_request_quiz,
     get_retry_document,
     get_upload_document,
 )
@@ -26,6 +32,7 @@ from app.interfaces.http.schemas.documents import (
     DescriptionSection,
     DocumentDetail,
     DocumentRead,
+    QuizRead,
     SectionRead,
 )
 
@@ -123,6 +130,44 @@ async def regenerate_overview(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
     document, _, _ = result
     return DocumentRead.model_validate(document)
+
+
+@router.post("/{document_id}/quiz", response_model=QuizRead)
+async def request_quiz(
+    document_id: UUID,
+    response: Response,
+    use_case: RequestQuiz = Depends(get_request_quiz),
+) -> QuizRead:
+    """Get-or-create a document's quiz. 200 if cached/already pending, 202 if newly enqueued."""
+    quiz, enqueued = await use_case.execute(document_id)
+    response.status_code = (
+        status.HTTP_202_ACCEPTED if enqueued else status.HTTP_200_OK
+    )
+    return QuizRead.model_validate(quiz)
+
+
+@router.post(
+    "/{document_id}/quiz/regenerate", response_model=QuizRead, status_code=status.HTTP_202_ACCEPTED
+)
+async def regenerate_quiz(
+    document_id: UUID,
+    use_case: RegenerateQuiz = Depends(get_regenerate_quiz),
+) -> QuizRead:
+    """Force a fresh quiz for a document, replacing any cached one."""
+    quiz = await use_case.execute(document_id)
+    return QuizRead.model_validate(quiz)
+
+
+@router.get("/{document_id}/quiz", response_model=QuizRead)
+async def get_quiz(
+    document_id: UUID,
+    use_case: GetQuiz = Depends(get_get_quiz),
+) -> QuizRead:
+    """Get a document's quiz (used for polling while generation is pending)."""
+    quiz = await use_case.execute(document_id)
+    if quiz is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="quiz not found")
+    return QuizRead.model_validate(quiz)
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

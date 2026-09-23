@@ -40,3 +40,25 @@ export interface DocumentDetail extends Document {
   description_sections: DescriptionSection[];
   chunk_count: number;
 }
+
+export type QuizStatus = "pending" | "ready" | "failed";
+
+export type QuizOption = "A" | "B" | "C" | "D";
+
+export interface QuizQuestion {
+  position: number;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: QuizOption;
+}
+
+export interface Quiz {
+  id: string;
+  document_id: string;
+  status: QuizStatus;
+  questions: QuizQuestion[];
+  error_message: string | null;
+}

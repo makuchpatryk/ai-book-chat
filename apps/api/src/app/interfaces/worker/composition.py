@@ -3,11 +3,12 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.application.usecases.documents.generate_overview import GenerateDocumentOverview
+from app.application.usecases.documents.generate_quiz import GenerateQuiz
 from app.application.usecases.ingestion.ingest_document import IngestDocument
 from app.infrastructure.config.settings import get_settings
 from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from app.infrastructure.embeddings.adapters import build_embedder
-from app.infrastructure.llm.adapters import build_describer
+from app.infrastructure.llm.adapters import build_describer, build_quiz_generator
 from app.infrastructure.pdf.pymupdf_extractor import PyMuPdfExtractor
 from app.infrastructure.tokenizer import TiktokenCounter
 
@@ -61,4 +62,24 @@ def get_generate_overview() -> GenerateDocumentOverview:
         describer,
         pdf_extractor,
         settings.describe_max_input_tokens,
+    )
+
+
+def get_generate_quiz() -> GenerateQuiz:
+    """Factory for GenerateQuiz use case (worker-scoped)."""
+    settings = get_settings()
+
+    engine = create_async_engine(
+        settings.database_url,
+        poolclass=__import__("sqlalchemy.pool").NullPool,
+    )
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+    uow_factory = SqlAlchemyUnitOfWorkFactory(sessionmaker)
+
+    generator = build_quiz_generator(settings)
+
+    return GenerateQuiz(
+        uow_factory,
+        generator,
+        settings.quiz_max_input_tokens,
     )

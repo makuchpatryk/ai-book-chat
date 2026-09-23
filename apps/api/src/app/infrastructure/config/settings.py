@@ -85,6 +85,11 @@ class Settings(BaseSettings):
     describe_max_input_tokens: int = 8000
     describe_max_tokens: int = 3000
 
+    # Quiz generation
+    quiz_model: str
+    quiz_max_input_tokens: int = 8000
+    quiz_max_tokens: int = 4000
+
     # Retry and recovery
     stuck_after_minutes: int = 30
     retrieval_max_distance: float = 0.75

@@ -7,6 +7,7 @@ from app.domain.ports.repositories import (
     ConversationRepository,
     DocumentRepository,
     MessageRepository,
+    QuizRepository,
     SectionRepository,
 )
 from app.domain.ports.unit_of_work import UnitOfWork, UnitOfWorkFactory
@@ -15,6 +16,7 @@ from app.infrastructure.db.repositories import (
     SqlConversationRepository,
     SqlDocumentRepository,
     SqlMessageRepository,
+    SqlQuizRepository,
     SqlSectionRepository,
 )
 
@@ -29,6 +31,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         self.chunks = SqlChunkRepository(session)
         self.conversations = SqlConversationRepository(session)
         self.messages = SqlMessageRepository(session)
+        self.quizzes = SqlQuizRepository(session)
 
     async def __aenter__(self) -> "SqlAlchemyUnitOfWork":
         return self

@@ -5,6 +5,7 @@ from typing import Protocol
 
 from app.domain.values.messages import Turn
 from app.domain.values.overview import DocumentOverview
+from app.domain.values.quiz import QuizQuestion
 
 
 class GenerationEvent(Protocol):
@@ -56,4 +57,12 @@ class DocumentDescriber(Protocol):
         sample_text: str,
     ) -> DocumentOverview:
         """Generate a document overview from sampled text."""
+        ...
+
+
+class QuizGenerator(Protocol):
+    """Port for generating a multiple-choice quiz from a document's chunks."""
+
+    async def generate(self, title: str, chunks: list[str]) -> list[QuizQuestion]:
+        """Generate exactly 10 multiple-choice questions grounded in the given chunks."""
         ...

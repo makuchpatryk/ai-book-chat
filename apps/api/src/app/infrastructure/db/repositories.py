@@ -7,21 +7,24 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from app.domain.entities import Chunk, Conversation, Document, Message, Section
+from app.domain.entities import Chunk, Conversation, Document, Message, Quiz, Section
 from app.domain.ports.repositories import (
     ChunkRepository,
     ConversationRepository,
     DocumentRepository,
     MessageRepository,
+    QuizRepository,
     SectionRepository,
 )
 from app.domain.values.messages import Turn
 from app.domain.values.retrieval import RetrievedChunk
 from app.infrastructure.db.mappers import (
+    entity_quiz_to_orm,
     orm_chunk_to_entity,
     orm_conversation_to_entity,
     orm_document_to_entity,
     orm_message_to_entity,
+    orm_quiz_to_entity,
     orm_section_to_entity,
     orm_source_to_citation,
     orm_turn_to_entity,
@@ -40,6 +43,9 @@ from app.infrastructure.db.models import (
 )
 from app.infrastructure.db.models import (
     MessageSource as MessageSourceORM,
+)
+from app.infrastructure.db.models import (
+    Quiz as QuizORM,
 )
 from app.infrastructure.db.models import (
     Section as SectionORM,
@@ -394,3 +400,28 @@ class SqlMessageRepository(MessageRepository):
         if orm_row:
             entity_message_to_orm(message, orm_row)
             await self.session.flush()
+
+
+class SqlQuizRepository(QuizRepository):
+    """SQLAlchemy implementation of QuizRepository."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_for_document(self, document_id: UUID) -> Quiz | None:
+        result = await self.session.execute(
+            select(QuizORM).where(QuizORM.document_id == document_id)
+        )
+        row = result.scalar_one_or_none()
+        return orm_quiz_to_entity(row) if row else None
+
+    async def save(self, quiz: Quiz) -> None:
+        result = await self.session.execute(
+            select(QuizORM).where(QuizORM.document_id == quiz.document_id)
+        )
+        orm_row = result.scalar_one_or_none()
+        if orm_row:
+            entity_quiz_to_orm(quiz, orm_row)
+        else:
+            self.session.add(entity_quiz_to_orm(quiz))
+        await self.session.flush()

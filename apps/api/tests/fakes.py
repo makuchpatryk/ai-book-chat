@@ -4,9 +4,10 @@ from datetime import datetime
 from types import TracebackType
 from uuid import UUID, uuid4
 
-from app.domain.entities import Chunk, Document, Section
+from app.domain.entities import Chunk, Document, Quiz, Section
 from app.domain.ports.storage import CoverImage
 from app.domain.values.overview import DocumentOverview, OverviewSection
+from app.domain.values.quiz import QuizQuestion, QuizStatus
 from app.domain.values.status import DocumentStatus
 
 
@@ -44,6 +45,31 @@ def make_overview() -> DocumentOverview:
         topics=["a", "b", "c"],
         sections=[OverviewSection(heading=f"H{i}", body=f"B{i}") for i in range(3)],
     )
+
+
+def make_quiz_questions(count: int = 10) -> list[QuizQuestion]:
+    return [
+        QuizQuestion(
+            position=i,
+            question=f"Question {i}?",
+            option_a="A",
+            option_b="B",
+            option_c="C",
+            option_d="D",
+            correct_option="A",
+        )
+        for i in range(count)
+    ]
+
+
+def make_quiz(**overrides: object) -> Quiz:
+    fields: dict[str, object] = {
+        "id": uuid4(),
+        "document_id": uuid4(),
+        "status": QuizStatus.PENDING,
+    }
+    fields.update(overrides)
+    return Quiz(**fields)  # type: ignore[arg-type]
 
 
 class FakeDocuments:
@@ -85,10 +111,26 @@ class FakeChunks:
         return [c for c in self.chunks if c.document_id == document_id]
 
 
+class FakeQuizzes:
+    def __init__(self, quizzes: list[Quiz] | None = None) -> None:
+        self.store = {q.document_id: q for q in (quizzes or [])}
+        self.saved: list[Quiz] = []
+
+    async def get_for_document(self, document_id: UUID) -> Quiz | None:
+        return self.store.get(document_id)
+
+    async def save(self, quiz: Quiz) -> None:
+        self.saved.append(quiz)
+        self.store[quiz.document_id] = quiz
+
+
 class FakeUow:
-    def __init__(self, documents: FakeDocuments, chunks: FakeChunks) -> None:
+    def __init__(
+        self, documents: FakeDocuments, chunks: FakeChunks, quizzes: FakeQuizzes | None = None
+    ) -> None:
         self.documents = documents
         self.chunks = chunks
+        self.quizzes = quizzes or FakeQuizzes()
         self.commits = 0
 
     async def __aenter__(self) -> "FakeUow":
@@ -107,8 +149,13 @@ class FakeUow:
 
 
 class FakeUowFactory:
-    def __init__(self, documents: list[Document], chunks: list[Chunk] | None = None) -> None:
-        self.uow = FakeUow(FakeDocuments(documents), FakeChunks(chunks or []))
+    def __init__(
+        self,
+        documents: list[Document],
+        chunks: list[Chunk] | None = None,
+        quizzes: list[Quiz] | None = None,
+    ) -> None:
+        self.uow = FakeUow(FakeDocuments(documents), FakeChunks(chunks or []), FakeQuizzes(quizzes))
 
     def __call__(self) -> FakeUow:
         return self.uow
@@ -117,6 +164,7 @@ class FakeUowFactory:
 class FakeQueue:
     def __init__(self, fail: bool = False) -> None:
         self.overview_requests: list[UUID] = []
+        self.quiz_requests: list[UUID] = []
         self.ingest_requests: list[UUID] = []
         self.fail = fail
 
@@ -127,6 +175,11 @@ class FakeQueue:
         if self.fail:
             raise RuntimeError("broker down")
         self.overview_requests.append(document_id)
+
+    async def enqueue_quiz(self, document_id: UUID) -> None:
+        if self.fail:
+            raise RuntimeError("broker down")
+        self.quiz_requests.append(document_id)
 
 
 class FixedClock:
@@ -167,6 +220,21 @@ class ScriptedDescriber:
         self.calls.append(
             {"title": title, "author": author, "sections": section_titles, "sample": sample_text}
         )
+        outcome = self.outcomes.pop(0) if len(self.outcomes) > 1 else self.outcomes[0]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+class ScriptedQuizGenerator:
+    """Returns / raises the queued outcomes in order, then repeats the last one."""
+
+    def __init__(self, *outcomes: list[QuizQuestion] | Exception) -> None:
+        self.outcomes = list(outcomes)
+        self.calls: list[dict[str, object]] = []
+
+    async def generate(self, title: str, chunks: list[str]) -> list[QuizQuestion]:
+        self.calls.append({"title": title, "chunks": chunks})
         outcome = self.outcomes.pop(0) if len(self.outcomes) > 1 else self.outcomes[0]
         if isinstance(outcome, Exception):
             raise outcome

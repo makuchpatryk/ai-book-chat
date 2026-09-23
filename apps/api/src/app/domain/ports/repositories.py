@@ -3,7 +3,7 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.entities import Chunk, Conversation, Document, Message, Section
+from app.domain.entities import Chunk, Conversation, Document, Message, Quiz, Section
 from app.domain.values.messages import Turn
 from app.domain.values.retrieval import RetrievedChunk
 
@@ -140,4 +140,16 @@ class MessageRepository(Protocol):
 
     async def save(self, message: Message) -> None:
         """Persist changes to a message."""
+        ...
+
+
+class QuizRepository(Protocol):
+    """Persistence port for quizzes."""
+
+    async def get_for_document(self, document_id: UUID) -> Quiz | None:
+        """Get the quiz for a document, if one exists."""
+        ...
+
+    async def save(self, quiz: Quiz) -> None:
+        """Insert or update the quiz for its document (one quiz per document)."""
         ...

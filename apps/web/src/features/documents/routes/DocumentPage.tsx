@@ -1,15 +1,22 @@
 import { useParams } from "react-router";
 import { format } from "date-fns";
+import { useState } from "react";
+import { GraduationCap } from "lucide-react";
 import { Badge } from "@libs/components/ui/badge";
+import { Button } from "@libs/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@libs/components/ui/card";
 import { ConversationList, useDocument, useConversations } from "@/features/chat";
 import { DocumentCover } from "../components/DocumentCover";
 import { OverviewSections } from "../components/OverviewSections";
+import { QuizModal } from "../components/QuizModal";
+import { usePrepareQuiz } from "../hooks/usePrepareQuiz";
 
 export function DocumentPage() {
   const { documentId } = useParams<{ documentId: string }>();
   const { data: document } = useDocument(documentId || "");
   const { data: conversations } = useConversations(documentId || "");
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const prepareQuiz = usePrepareQuiz();
 
   if (!documentId || !document) {
     return (
@@ -20,6 +27,11 @@ export function DocumentPage() {
       </Card>
     );
   }
+
+  const handlePrepareQuiz = () => {
+    setShowQuizModal(true);
+    prepareQuiz.mutate(document.id);
+  };
 
   const meta = [
     document.author,
@@ -65,6 +77,24 @@ export function DocumentPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Quiz</CardTitle>
+          <CardDescription>Test your understanding of this document</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={document.status !== "READY" || prepareQuiz.isPending}
+            onClick={handlePrepareQuiz}
+          >
+            <GraduationCap className="h-4 w-4" />
+            Prepare Quiz
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Conversations</CardTitle>
           <CardDescription>Chat with this document</CardDescription>
         </CardHeader>
@@ -72,6 +102,13 @@ export function DocumentPage() {
           <ConversationList documentId={documentId} conversations={conversations} />
         </CardContent>
       </Card>
+
+      <QuizModal
+        documentId={document.id}
+        documentTitle={document.title}
+        open={showQuizModal}
+        onOpenChange={setShowQuizModal}
+      />
     </div>
   );
 }

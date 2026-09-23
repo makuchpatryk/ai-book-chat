@@ -13,8 +13,11 @@ from app.application.usecases.chat.rename_conversation import RenameConversation
 from app.application.usecases.documents.delete_document import DeleteDocument
 from app.application.usecases.documents.get_cover import GetCover
 from app.application.usecases.documents.get_document_detail import GetDocumentDetail
+from app.application.usecases.documents.get_quiz import GetQuiz
 from app.application.usecases.documents.list_documents import ListDocuments
+from app.application.usecases.documents.regenerate_quiz import RegenerateQuiz
 from app.application.usecases.documents.request_overview import RequestOverview
+from app.application.usecases.documents.request_quiz import RequestQuiz
 from app.application.usecases.documents.retry_document import RetryDocument
 from app.application.usecases.documents.upload_document import UploadDocument
 from app.application.usecases.search.search_document import SearchDocument
@@ -179,3 +182,24 @@ async def get_get_cover(settings: Settings = Depends(get_settings)) -> GetCover:
     """FastAPI dependency for GetCover use case."""
     uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
     return GetCover(uow_factory)
+
+
+async def get_request_quiz(settings: Settings = Depends(get_settings)) -> RequestQuiz:
+    """FastAPI dependency for RequestQuiz use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    queue = CeleryIngestionQueue()
+    clock = SystemClock()
+    return RequestQuiz(uow_factory, queue, clock)
+
+
+async def get_regenerate_quiz(settings: Settings = Depends(get_settings)) -> RegenerateQuiz:
+    """FastAPI dependency for RegenerateQuiz use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    queue = CeleryIngestionQueue()
+    return RegenerateQuiz(uow_factory, queue)
+
+
+async def get_get_quiz(settings: Settings = Depends(get_settings)) -> GetQuiz:
+    """FastAPI dependency for GetQuiz use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    return GetQuiz(uow_factory)

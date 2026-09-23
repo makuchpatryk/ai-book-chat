@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 from app.domain.values.overview import OverviewStatus
+from app.domain.values.quiz import QuizOption, QuizStatus
 from app.infrastructure.db.models import DocumentStatus
 
 
@@ -52,3 +53,25 @@ class DocumentDetail(DocumentRead):
     sections: list[SectionRead]
     description_sections: list[DescriptionSection] = []
     chunk_count: int
+
+
+class QuizQuestionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    position: int
+    question: str
+    option_a: str
+    option_b: str
+    option_c: str
+    option_d: str
+    correct_option: QuizOption
+
+
+class QuizRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    document_id: UUID
+    status: QuizStatus
+    questions: list[QuizQuestionRead] = []
+    error_message: str | None = None

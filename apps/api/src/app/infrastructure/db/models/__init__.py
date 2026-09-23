@@ -11,6 +11,7 @@ from app.infrastructure.db.models.conversation import Conversation
 from app.infrastructure.db.models.document import Document, DocumentStatus
 from app.infrastructure.db.models.message import Message, MessageRole
 from app.infrastructure.db.models.message_source import MessageSource
+from app.infrastructure.db.models.quiz import Quiz
 from app.infrastructure.db.models.section import Section
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "Message",
     "MessageRole",
     "MessageSource",
+    "Quiz",
     "Section",
 ]

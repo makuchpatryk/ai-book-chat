@@ -13,6 +13,10 @@ export type {
   Section,
   Document,
   DocumentDetail,
+  QuizStatus,
+  QuizOption,
+  QuizQuestion,
+  Quiz,
 } from "@libs/api/documents/types";
 export type { Conversation, Message, Source } from "@libs/api/conversations/types";
 export type { ChatEvent } from "@libs/api/chat/types";

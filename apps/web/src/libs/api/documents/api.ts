@@ -1,5 +1,5 @@
 import { API_BASE, request, upload } from "@libs/api/client";
-import type { Document, DocumentDetail } from "./types";
+import type { Document, DocumentDetail, Quiz } from "./types";
 
 export async function listDocuments(): Promise<Document[]> {
   return request<Document[]>("/documents");
@@ -29,4 +29,16 @@ export async function regenerateOverview(id: string): Promise<Document> {
 
 export function documentCoverUrl(id: string): string {
   return `${API_BASE}/documents/${id}/cover`;
+}
+
+export async function prepareQuiz(id: string): Promise<Quiz> {
+  return request<Quiz>(`/documents/${id}/quiz`, { method: "POST" });
+}
+
+export async function regenerateQuiz(id: string): Promise<Quiz> {
+  return request<Quiz>(`/documents/${id}/quiz/regenerate`, { method: "POST" });
+}
+
+export async function getQuiz(id: string): Promise<Quiz> {
+  return request<Quiz>(`/documents/${id}/quiz`);
 }

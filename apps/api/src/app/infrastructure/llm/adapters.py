@@ -7,9 +7,16 @@ from collections.abc import AsyncIterator
 
 from openai import AsyncOpenAI
 
-from app.domain.ports.llm import AnswerGenerator, DocumentDescriber, QueryRewriter, Reranker
+from app.domain.ports.llm import (
+    AnswerGenerator,
+    DocumentDescriber,
+    QueryRewriter,
+    QuizGenerator,
+    Reranker,
+)
 from app.domain.values.messages import Turn
 from app.domain.values.overview import DocumentOverview, OverviewSection
+from app.domain.values.quiz import QuizQuestion
 from app.infrastructure.config.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -258,6 +265,94 @@ class FakeDescriber(DocumentDescriber):
         )
 
 
+QUIZ_QUESTION_COUNT = 10
+_QUIZ_OPTIONS = ("A", "B", "C", "D")
+
+
+class OpenAIQuizGenerator(QuizGenerator):
+    """OpenAI-compatible quiz generator."""
+
+    def __init__(self, client: AsyncOpenAI, model: str, max_tokens: int):
+        self.client = client
+        self.model = model
+        self.max_tokens = max_tokens
+
+    async def generate(self, title: str, chunks: list[str]) -> list[QuizQuestion]:
+        """Generate exactly 10 MCQs from the given chunks. Raises ValueError on invalid JSON."""
+        numbered = "\n\n".join(f"[Excerpt {i + 1}]\n{c}" for i, c in enumerate(chunks))
+        prompt = (
+            f"Document Title: {title}\n\n"
+            f"Excerpts from the document:\n{numbered}\n\n"
+            f"Based only on the above excerpts, write exactly {QUIZ_QUESTION_COUNT} "
+            "multiple-choice quiz questions that test understanding of the document's content.\n"
+            "Reply with a JSON object shaped:\n"
+            '{"questions": [{"question": str, "option_a": str, "option_b": str, '
+            '"option_c": str, "option_d": str, "correct_option": "A"|"B"|"C"|"D"}]}\n'
+            f"Exactly {QUIZ_QUESTION_COUNT} entries, one correct option per question. "
+            "Reply JSON only."
+        )
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            messages=[
+                {"role": "system", "content": "You are a quiz writer. Reply JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        content = response.choices[0].message.content or ""
+        payload = _extract_json_object(content)
+
+        raw_questions = payload.get("questions")
+        if not isinstance(raw_questions, list):
+            raise ValueError("response has no 'questions' list")
+        if len(raw_questions) != QUIZ_QUESTION_COUNT:
+            raise ValueError(f"expected {QUIZ_QUESTION_COUNT} questions, got {len(raw_questions)}")
+
+        questions = []
+        for i, q in enumerate(raw_questions):
+            if not isinstance(q, dict):
+                raise ValueError(f"question {i} is not an object")
+            correct_option = str(q.get("correct_option") or "").strip().upper()
+            if correct_option not in _QUIZ_OPTIONS:
+                raise ValueError(f"question {i} has invalid correct_option: {correct_option!r}")
+            questions.append(
+                QuizQuestion(
+                    position=i,
+                    question=str(q.get("question") or "")[:1024],
+                    option_a=str(q.get("option_a") or "")[:256],
+                    option_b=str(q.get("option_b") or "")[:256],
+                    option_c=str(q.get("option_c") or "")[:256],
+                    option_d=str(q.get("option_d") or "")[:256],
+                    correct_option=correct_option,  # type: ignore[arg-type]
+                )
+            )
+            if not all([questions[-1].question, questions[-1].option_a, questions[-1].option_b,
+                        questions[-1].option_c, questions[-1].option_d]):
+                raise ValueError(f"question {i} has an empty field")
+
+        return questions
+
+
+class FakeQuizGenerator(QuizGenerator):
+    """Fake quiz generator for testing (deterministic)."""
+
+    async def generate(self, title: str, chunks: list[str]) -> list[QuizQuestion]:
+        """Return a fake but structurally valid quiz."""
+        return [
+            QuizQuestion(
+                position=i,
+                question=f"Fake question {i + 1} about {title}?",
+                option_a="Option A",
+                option_b="Option B",
+                option_c="Option C",
+                option_d="Option D",
+                correct_option="A",
+            )
+            for i in range(QUIZ_QUESTION_COUNT)
+        ]
+
+
 def build_generator(settings: Settings) -> AnswerGenerator:
     """Build answer generator based on settings."""
     if not settings.llm_token:
@@ -288,3 +383,11 @@ def build_describer(settings: Settings) -> DocumentDescriber:
         return FakeDescriber()
     client = AsyncOpenAI(api_key=settings.llm_token, base_url=settings.llm_base_url)
     return OpenAIDescriber(client, settings.describe_model, settings.describe_max_tokens)
+
+
+def build_quiz_generator(settings: Settings) -> QuizGenerator:
+    """Build quiz generator based on settings."""
+    if not settings.llm_token:
+        return FakeQuizGenerator()
+    client = AsyncOpenAI(api_key=settings.llm_token, base_url=settings.llm_base_url)
+    return OpenAIQuizGenerator(client, settings.quiz_model, settings.quiz_max_tokens)

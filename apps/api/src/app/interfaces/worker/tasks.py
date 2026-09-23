@@ -66,3 +66,25 @@ async def _generate_overview(document_id: UUID) -> bool:
     except Exception as e:
         logger.exception(f"document {document_id} overview generation error: {e}")
         return False
+
+
+@shared_task(name="app.interfaces.worker.tasks.generate_quiz", acks_late=True, time_limit=300)
+def generate_quiz(document_id: str) -> bool:
+    """Generate a document's quiz. Never raises — status is persisted."""
+    return asyncio.run(_generate_quiz(UUID(document_id)))
+
+
+async def _generate_quiz(document_id: UUID) -> bool:
+    """Async quiz generation entrypoint."""
+    from app.interfaces.worker.composition import get_generate_quiz
+
+    use_case = get_generate_quiz()
+
+    try:
+        success = await use_case.execute(document_id)
+        outcome = "success" if success else "failed"
+        logger.info(f"document {document_id} quiz generation: {outcome}")
+        return success
+    except Exception as e:
+        logger.exception(f"document {document_id} quiz generation error: {e}")
+        return False

@@ -1,10 +1,12 @@
 """Mappers between ORM models and domain entities."""
 
 from datetime import UTC, datetime
+from typing import cast
 
-from app.domain.entities import Chunk, Conversation, Document, Message, Section
+from app.domain.entities import Chunk, Conversation, Document, Message, Quiz, Section
 from app.domain.values.messages import Turn
 from app.domain.values.overview import OverviewStatus
+from app.domain.values.quiz import QuizOption, QuizQuestion, QuizStatus
 from app.domain.values.retrieval import Citation
 from app.domain.values.status import DocumentStatus, MessageRole
 from app.infrastructure.db.models import (
@@ -21,6 +23,9 @@ from app.infrastructure.db.models import (
 )
 from app.infrastructure.db.models import (
     MessageSource as MessageSourceORM,
+)
+from app.infrastructure.db.models import (
+    Quiz as QuizORM,
 )
 from app.infrastructure.db.models import (
     Section as SectionORM,
@@ -219,3 +224,59 @@ def entity_message_to_orm(entity: Message, orm_row: MessageORM | None = None) ->
 def orm_turn_to_entity(role: str, content: str) -> Turn:
     """Map ORM message row pair to domain Turn entity."""
     return Turn(role=MessageRole(role), content=content)
+
+
+def orm_quiz_to_entity(row: QuizORM) -> Quiz:
+    """Map ORM Quiz row to domain Quiz entity."""
+    return Quiz(
+        id=row.id,
+        document_id=row.document_id,
+        status=QuizStatus(row.status),
+        questions=[
+            QuizQuestion(
+                position=cast(int, q["position"]),
+                question=str(q["question"]),
+                option_a=str(q["option_a"]),
+                option_b=str(q["option_b"]),
+                option_c=str(q["option_c"]),
+                option_d=str(q["option_d"]),
+                correct_option=cast(QuizOption, q["correct_option"]),
+            )
+            for q in (row.questions or [])
+        ],
+        error_message=row.error_message,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def entity_quiz_to_orm(entity: Quiz, orm_row: QuizORM | None = None) -> QuizORM:
+    """Map domain Quiz entity to ORM Quiz row."""
+    questions = [
+        {
+            "position": q.position,
+            "question": q.question,
+            "option_a": q.option_a,
+            "option_b": q.option_b,
+            "option_c": q.option_c,
+            "option_d": q.option_d,
+            "correct_option": q.correct_option,
+        }
+        for q in entity.questions
+    ]
+    if orm_row:
+        orm_row.status = entity.status.value
+        orm_row.questions = questions or None
+        orm_row.error_message = entity.error_message
+        orm_row.updated_at = _as_utc(entity.updated_at)
+        return orm_row
+    else:
+        return QuizORM(
+            id=entity.id,
+            document_id=entity.document_id,
+            status=entity.status.value,
+            questions=questions or None,
+            error_message=entity.error_message,
+            created_at=_as_utc(entity.created_at),
+            updated_at=_as_utc(entity.updated_at),
+        )
