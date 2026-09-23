@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.domain.values.quiz import QuizQuestion, QuizStatus
 
@@ -22,7 +22,8 @@ class Quiz:
     updated_at: datetime = field(default_factory=datetime.utcnow)
 
     def mark_pending(self) -> None:
-        """Mark quiz as pending, ready to (re)generate."""
+        """Mark quiz as pending, ready to (re)generate. New id — clients key state resets off it."""
+        self.id = uuid4()
         self.status = QuizStatus.PENDING
         self.questions = []
         self.error_message = None
