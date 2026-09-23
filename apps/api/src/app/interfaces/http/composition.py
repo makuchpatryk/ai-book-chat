@@ -9,6 +9,7 @@ from app.application.usecases.chat.create_conversation import CreateConversation
 from app.application.usecases.chat.delete_conversation import DeleteConversation
 from app.application.usecases.chat.get_messages import GetMessages
 from app.application.usecases.chat.list_conversations import ListConversations
+from app.application.usecases.chat.rename_conversation import RenameConversation
 from app.application.usecases.documents.delete_document import DeleteDocument
 from app.application.usecases.documents.get_cover import GetCover
 from app.application.usecases.documents.get_document_detail import GetDocumentDetail
@@ -106,6 +107,12 @@ async def get_delete_conversation(settings: Settings = Depends(get_settings)) ->
     """FastAPI dependency for DeleteConversation use case."""
     uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
     return DeleteConversation(uow_factory)
+
+
+async def get_rename_conversation(settings: Settings = Depends(get_settings)) -> RenameConversation:
+    """FastAPI dependency for RenameConversation use case."""
+    uow_factory = SqlAlchemyUnitOfWorkFactory(AsyncSessionLocal)
+    return RenameConversation(uow_factory)
 
 
 async def get_upload_document(settings: Settings = Depends(get_settings)) -> UploadDocument:

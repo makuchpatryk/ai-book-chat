@@ -11,6 +11,7 @@ from app.application.usecases.chat.create_conversation import CreateConversation
 from app.application.usecases.chat.delete_conversation import DeleteConversation
 from app.application.usecases.chat.get_messages import GetMessages
 from app.application.usecases.chat.list_conversations import ListConversations
+from app.application.usecases.chat.rename_conversation import RenameConversation
 from app.infrastructure.config.settings import Settings, get_settings
 from app.interfaces.http.composition import (
     get_ask_question,
@@ -18,10 +19,12 @@ from app.interfaces.http.composition import (
     get_delete_conversation,
     get_get_messages,
     get_list_conversations,
+    get_rename_conversation,
 )
 from app.interfaces.http.schemas.chat import (
     ConversationRead,
     MessageRead,
+    RenameConversationRequest,
     SendMessageRequest,
     SourceRead,
 )
@@ -99,6 +102,24 @@ async def get_messages(
         )
         for msg in messages
     ]
+
+
+@router.patch("/conversations/{conversation_id}", response_model=ConversationRead)
+async def rename_conversation(
+    conversation_id: UUID,
+    request: RenameConversationRequest,
+    use_case: RenameConversation = Depends(get_rename_conversation),
+) -> ConversationRead:
+    """Rename a conversation."""
+    conversation = await use_case.execute(conversation_id, request.title)
+    if conversation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="conversation not found")
+
+    return ConversationRead(
+        id=conversation.id,
+        title=conversation.title,
+        created_at=conversation.created_at.isoformat(),
+    )
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)

@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* `dark:` follows the `.dark` class like the tokens below, not the OS setting —
+   otherwise an OS in dark mode darkens those utilities inside a light app. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* shadcn/ui token set (slate base), Tailwind v4 style. */
 @theme inline {
   --color-background: var(--background);

@@ -1,5 +1,6 @@
 """SQLAlchemy implementations of repository ports."""
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -321,6 +322,18 @@ class SqlConversationRepository(ConversationRepository):
             await self.session.flush()
             return True
         return False
+
+    async def rename(self, conversation_id: UUID, title: str) -> Conversation | None:
+        result = await self.session.execute(
+            select(ConversationORM).where(ConversationORM.id == conversation_id)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        row.title = title
+        row.updated_at = datetime.now(UTC)
+        await self.session.flush()
+        return orm_conversation_to_entity(row)
 
 
 class SqlMessageRepository(MessageRepository):

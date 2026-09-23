@@ -1,12 +1,17 @@
 """Wire shapes for chat endpoints."""
 
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 
 class SendMessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
+
+
+class RenameConversationRequest(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
 
 class SourceRead(BaseModel):

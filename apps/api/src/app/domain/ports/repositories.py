@@ -114,6 +114,10 @@ class ConversationRepository(Protocol):
         """Delete conversation by ID. Returns True if deleted."""
         ...
 
+    async def rename(self, conversation_id: UUID, title: str) -> Conversation | None:
+        """Set the conversation title. Returns the updated conversation, or None if missing."""
+        ...
+
 
 class MessageRepository(Protocol):
     """Persistence port for messages."""
