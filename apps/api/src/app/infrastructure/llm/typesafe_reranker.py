@@ -1,10 +1,13 @@
 """TypeSafe (System One) passage reranker."""
 
 import asyncio
+import logging
 
 from typesafe_sdk import AsyncTypeSafeClient, Score
 
 from app.domain.ports.llm import Reranker
+
+logger = logging.getLogger(__name__)
 
 # Ordered least to most relevant; the model sees each level independently, so
 # every one describes a concrete situation rather than a degree.
@@ -42,6 +45,7 @@ class TypeSafeReranker(Reranker):
         if not passages:
             return []
 
+        logger.info(f"TypeSafeReranker scoring {len(passages)} passages via {self.base_url}")
         gate = asyncio.Semaphore(_MAX_CONCURRENCY)
         async with AsyncTypeSafeClient(
             api_key=self.api_key, model=self.model, base_url=self.base_url
