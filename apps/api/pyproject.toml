@@ -22,6 +22,7 @@ dependencies = [
     "tenacity>=9.0",
     # Runtime, not just tests: the Ollama embedder talks HTTP directly.
     "httpx>=0.28",
+    "typesafe-sdk>=0.7.2",
 ]
 
 [dependency-groups]
