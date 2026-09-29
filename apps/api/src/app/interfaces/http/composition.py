@@ -30,11 +30,10 @@ from app.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from app.infrastructure.embeddings.adapters import build_embedder
 from app.infrastructure.llm.adapters import (
     FakeGenerator,
-    FakeReranker,
     FakeRewriter,
     OpenAIGenerator,
-    OpenAIReranker,
     OpenAIRewriter,
+    build_reranker,
 )
 from app.infrastructure.queue.celery_queue import CeleryIngestionQueue
 from app.infrastructure.storage.local_files import LocalFileStorage
@@ -49,12 +48,11 @@ def build_adapters(settings: Settings) -> tuple[AnswerGenerator, QueryRewriter, 
         )
         generator: AnswerGenerator = OpenAIGenerator(client, settings.chat_model, settings.chat_max_tokens)
         rewriter: QueryRewriter = OpenAIRewriter(client, settings.chat_rewrite_model)
-        reranker: Reranker = OpenAIReranker(client, settings.rerank_model, settings.rerank_max_tokens)
     else:
         generator = FakeGenerator()
         rewriter = FakeRewriter()
-        reranker = FakeReranker()
 
+    reranker: Reranker = build_reranker(settings)
     embedder = build_embedder(settings)
     return generator, rewriter, reranker, embedder
 

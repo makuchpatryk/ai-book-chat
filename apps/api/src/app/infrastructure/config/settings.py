@@ -66,7 +66,11 @@ class Settings(BaseSettings):
     chunk_target_tokens: int = 600
     chunk_overlap_ratio: float = 0.15
 
-    # Retrieval — re-ranking
+    # Retrieval — re-ranking. With typesafe_api_key set, passages are scored by
+    # TypeSafe's Jev model (via OpenRouter or direct API) instead of rerank_model.
+    typesafe_api_key: str | None = None
+    typesafe_model: str | None = None  # None ⇒ SDK's default (jev-latest)
+    typesafe_base_url: str = "https://openrouter.ai/api/v1"  # OpenRouter; typesafe.ai for direct API
     rerank_model: str
     retrieval_top_k: int = 30
     rerank_top_n: int = 8

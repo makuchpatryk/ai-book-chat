@@ -11,8 +11,10 @@ from app.infrastructure.llm.adapters import (
     build_reranker,
     build_rewriter,
 )
+from app.infrastructure.llm.typesafe_reranker import TypeSafeReranker
 
 __all__ = [
+    "TypeSafeReranker",
     "FakeGenerator",
     "FakeReranker",
     "FakeRewriter",

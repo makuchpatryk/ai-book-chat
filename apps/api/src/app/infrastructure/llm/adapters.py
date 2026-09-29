@@ -18,6 +18,7 @@ from app.domain.values.messages import Turn
 from app.domain.values.overview import DocumentOverview, OverviewSection
 from app.domain.values.quiz import QuizQuestion
 from app.infrastructure.config.settings import Settings
+from app.infrastructure.llm.typesafe_reranker import TypeSafeReranker
 
 logger = logging.getLogger(__name__)
 
@@ -370,7 +371,11 @@ def build_rewriter(settings: Settings) -> QueryRewriter:
 
 
 def build_reranker(settings: Settings) -> Reranker:
-    """Build reranker based on settings."""
+    """Build reranker based on settings: TypeSafe, then OpenAI-compatible, then fake."""
+    if settings.typesafe_api_key:
+        return TypeSafeReranker(
+            settings.typesafe_api_key, settings.typesafe_model, settings.typesafe_base_url
+        )
     if not settings.llm_token:
         return FakeReranker()
     client = AsyncOpenAI(api_key=settings.llm_token, base_url=settings.llm_base_url)
