@@ -6,11 +6,11 @@ export function useDeleteDocument() {
 
   return useMutation({
     mutationFn: deleteDocument,
-    onSuccess: (_data, documentId) => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      // The API cascades the document's conversations away with it; drop their
-      // cached lists so a re-upload does not show the deleted threads.
-      queryClient.removeQueries({ queryKey: ["conversations", documentId] });
+    onSuccess: () => {
+      // Refresh only the list. A prefix match would also refetch ["documents", id],
+      // and purging the deleted document's cached queries while its page is still
+      // mounted makes them refetch: the API cascade already removed them, so they 404.
+      queryClient.invalidateQueries({ queryKey: ["documents"], exact: true });
     },
   });
 }
