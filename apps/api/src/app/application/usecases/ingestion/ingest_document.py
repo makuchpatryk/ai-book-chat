@@ -154,7 +154,7 @@ class IngestDocument:
                         raise ValueError(
                             f"embedder returned {len(vectors)} vectors for {len(group)} chunks"
                         )
-                    for chunk, vector in zip(group, vectors):
+                    for chunk, vector in zip(group, vectors, strict=True):
                         chunk.embedding = vector
 
                     # Commit per batch so the UI can poll a live progress bar.

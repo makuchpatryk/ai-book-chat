@@ -5,8 +5,8 @@ import json
 from collections.abc import AsyncIterator
 
 from app.domain.events import (
-    AnswerEvent,
     AnswerCompleted,
+    AnswerEvent,
     AnswerFailed,
     SourcesFound,
     TokenProduced,

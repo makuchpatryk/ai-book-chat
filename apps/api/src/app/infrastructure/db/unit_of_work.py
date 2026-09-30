@@ -2,14 +2,6 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.domain.ports.repositories import (
-    ChunkRepository,
-    ConversationRepository,
-    DocumentRepository,
-    MessageRepository,
-    QuizRepository,
-    SectionRepository,
-)
 from app.domain.ports.unit_of_work import UnitOfWork, UnitOfWorkFactory
 from app.infrastructure.db.repositories import (
     SqlChunkRepository,
@@ -36,7 +28,8 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
     async def __aenter__(self) -> "SqlAlchemyUnitOfWork":
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, *exc: object) -> None:
+        exc_type = exc[0] if exc else None
         if exc_type:
             await self.rollback()
         else:
@@ -52,7 +45,7 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
 class SqlAlchemyUnitOfWorkFactory(UnitOfWorkFactory):
     """Factory for creating SqlAlchemyUnitOfWork instances."""
 
-    def __init__(self, sessionmaker: async_sessionmaker):
+    def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]):
         self.sessionmaker = sessionmaker
 
     def __call__(self) -> SqlAlchemyUnitOfWork:

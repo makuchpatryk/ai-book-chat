@@ -1,7 +1,13 @@
 """Domain layer — pure business logic and entities."""
 
 from app.domain.entities import Chunk, Conversation, Document, Message, RetryVerdict, Section
-from app.domain.events import AnswerCompleted, AnswerEvent, AnswerFailed, SourcesFound, TokenProduced
+from app.domain.events import (
+    AnswerCompleted,
+    AnswerEvent,
+    AnswerFailed,
+    SourcesFound,
+    TokenProduced,
+)
 from app.domain.values import (
     ChatPolicy,
     Citation,

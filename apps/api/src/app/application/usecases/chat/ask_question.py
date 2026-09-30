@@ -4,14 +4,20 @@ import logging
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
+from app.application.usecases.chat.retrieve_context import RetrieveContext
 from app.domain.entities import Message
-from app.domain.events import AnswerEvent, AnswerCompleted, AnswerFailed, SourcesFound, TokenProduced
+from app.domain.events import (
+    AnswerCompleted,
+    AnswerEvent,
+    AnswerFailed,
+    SourcesFound,
+    TokenProduced,
+)
 from app.domain.ports.llm import AnswerGenerator, Embedder, QueryRewriter, Reranker
 from app.domain.ports.unit_of_work import UnitOfWorkFactory
 from app.domain.values.messages import Turn
 from app.domain.values.policies import ChatPolicy, RetrievalPolicy
 from app.domain.values.status import MessageRole
-from app.application.usecases.chat.retrieve_context import RetrieveContext
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +120,11 @@ class AskQuestion:
             # Build citations as domain values
             citations = retrieval.citations
             pages = sorted(
-                set(
-                    page for citation in citations
+                {
+                    page
+                    for citation in citations
                     for page in range(citation.page_start, citation.page_end + 1)
-                )
+                }
             )
 
             # Emit sources event

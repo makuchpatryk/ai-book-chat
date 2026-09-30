@@ -1,9 +1,10 @@
 """Unit tests for domain relevance service (no infrastructure, marked unit)."""
 
-import pytest
 from uuid import uuid4
 
-from app.domain.services.relevance import guard_and_cut, RetrievalOutcome
+import pytest
+
+from app.domain.services.relevance import guard_and_cut
 from app.domain.values.policies import RetrievalPolicy
 from app.domain.values.retrieval import RetrievedChunk, ScoredChunk
 

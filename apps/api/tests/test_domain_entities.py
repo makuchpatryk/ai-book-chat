@@ -1,13 +1,13 @@
 """Unit tests for domain entities (no infrastructure, marked unit)."""
 
-import pytest
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from app.domain.entities.conversation import Conversation
-from app.domain.entities.document import Document, RetryVerdict
-from app.domain.values.status import DocumentStatus
+import pytest
 
+from app.domain.entities.conversation import Conversation
+from app.domain.entities.document import Document
+from app.domain.values.status import DocumentStatus
 
 pytestmark = pytest.mark.unit
 

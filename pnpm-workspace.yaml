@@ -3,4 +3,6 @@ packages:
 allowBuilds:
   # esbuild ships a platform binary via its install script — Vite needs it.
   esbuild: true
-  msw: set this to true or false
+  # Postinstall only copies the worker script when package.json sets
+  # msw.workerDirectory, which we don't; tests run in Node.
+  msw: false

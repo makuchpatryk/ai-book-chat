@@ -46,7 +46,9 @@ def build_adapters(settings: Settings) -> tuple[AnswerGenerator, QueryRewriter, 
             api_key=settings.llm_token,
             base_url=settings.llm_base_url,
         )
-        generator: AnswerGenerator = OpenAIGenerator(client, settings.chat_model, settings.chat_max_tokens)
+        generator: AnswerGenerator = OpenAIGenerator(
+            client, settings.chat_model, settings.chat_max_tokens
+        )
         rewriter: QueryRewriter = OpenAIRewriter(client, settings.chat_rewrite_model)
     else:
         generator = FakeGenerator()

@@ -3,13 +3,13 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from app.application.usecases.chat.retrieve_context import RetrieveContext
 from app.domain.errors import DocumentNotFound, DocumentNotReady
 from app.domain.ports.llm import Embedder, Reranker
 from app.domain.ports.unit_of_work import UnitOfWorkFactory
 from app.domain.values.policies import RetrievalPolicy
-from app.domain.values.retrieval import Citation, ScoredChunk
+from app.domain.values.retrieval import ScoredChunk
 from app.domain.values.status import DocumentStatus
-from app.application.usecases.chat.retrieve_context import RetrieveContext
 
 
 @dataclass

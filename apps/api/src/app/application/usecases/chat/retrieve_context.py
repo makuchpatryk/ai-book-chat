@@ -84,7 +84,7 @@ class RetrieveContext:
                 ),
                 score=score,
             )
-            for chunk, score in zip(chunks, scores)
+            for chunk, score in zip(chunks, scores, strict=True)
         ]
 
         reranked = scores[0] is not None

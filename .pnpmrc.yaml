@@ -1,4 +1,0 @@
-# Allow build scripts for dependencies needed at install time.
-# MSW needs to run postinstall to generate mocking utilities.
-onlyBuiltDependencies:
-  - msw

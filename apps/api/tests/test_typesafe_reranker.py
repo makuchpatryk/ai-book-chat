@@ -70,7 +70,10 @@ async def test_one_failed_call_fails_the_whole_rerank() -> None:
 
 
 async def test_base_url_and_model_reach_the_client() -> None:
-    await TypeSafeReranker("key", model="jev-1.13", base_url="https://openrouter.ai/api").score("q", ["3"])
+    reranker = TypeSafeReranker(
+        "key", model="jev-1.13", base_url="https://openrouter.ai/api"
+    )
+    await reranker.score("q", ["3"])
 
     assert StubClient.inits == [
         {"api_key": "key", "model": "jev-1.13", "base_url": "https://openrouter.ai/api"}

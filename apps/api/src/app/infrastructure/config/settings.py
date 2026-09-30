@@ -70,7 +70,8 @@ class Settings(BaseSettings):
     # TypeSafe's Jev model (via OpenRouter or direct API) instead of rerank_model.
     typesafe_api_key: str | None = None
     typesafe_model: str | None = None  # None ⇒ SDK's default (jev-latest)
-    typesafe_base_url: str = "https://openrouter.ai/api"  # OpenRouter; the SDK appends /v1/systemone
+    # OpenRouter; the SDK appends /v1/systemone
+    typesafe_base_url: str = "https://openrouter.ai/api"
     rerank_model: str
     retrieval_top_k: int = 30
     rerank_top_n: int = 8

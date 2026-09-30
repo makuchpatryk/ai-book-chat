@@ -4,7 +4,7 @@ Tests run on the host against the docker-compose infra published on localhost,
 so they use the `.env` (host-facing) URLs, not the in-network ones.
 """
 
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -12,7 +12,6 @@ import sqlalchemy as sa
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from app.infrastructure.config.settings import Settings, get_settings
 from app.infrastructure.db.models import Document

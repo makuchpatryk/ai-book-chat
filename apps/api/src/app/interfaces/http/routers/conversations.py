@@ -30,11 +30,14 @@ from app.interfaces.http.schemas.chat import (
 )
 from app.interfaces.http.sse import with_heartbeat
 
-
 router = APIRouter(tags=["chat"])
 
 
-@router.post("/documents/{document_id}/conversations", response_model=ConversationRead, status_code=201)
+@router.post(
+    "/documents/{document_id}/conversations",
+    response_model=ConversationRead,
+    status_code=201,
+)
 async def create_conversation(
     document_id: UUID,
     use_case: CreateConversation = Depends(get_create_conversation),

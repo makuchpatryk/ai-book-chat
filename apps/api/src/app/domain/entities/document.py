@@ -58,7 +58,11 @@ class Document:
         if self.status == DocumentStatus.READY:
             return RetryVerdict(can_retry=False, reason="already_processed")
 
-        if self.status in (DocumentStatus.PENDING, DocumentStatus.PARSING, DocumentStatus.EMBEDDING):
+        if self.status in (
+            DocumentStatus.PENDING,
+            DocumentStatus.PARSING,
+            DocumentStatus.EMBEDDING,
+        ):
             # The DB hands back aware datetimes; the clock hands out naive UTC.
             updated_at = self.updated_at
             if updated_at.tzinfo is not None:

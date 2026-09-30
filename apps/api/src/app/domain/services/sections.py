@@ -10,23 +10,8 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import NamedTuple
 
-
-class OutlineEntry(NamedTuple):
-    """PDF outline entry."""
-    level: int
-    title: str
-    page_number: int
-
-
-class TextLine(NamedTuple):
-    """Text line extracted from PDF."""
-    text: str
-    page_number: int
-    font_size: float
-    span_count: int
-
+from app.domain.ports.storage import OutlineEntry, TextLine
 
 # A heading heuristic that fires once or twice is noise, and one that fires on
 # every page is a running header — both fall through to the next strategy.

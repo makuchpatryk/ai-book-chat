@@ -10,7 +10,7 @@ class Chunk:
 
     id: UUID
     document_id: UUID
-    section_id: UUID
+    section_id: UUID | None
     content: str
     page_start: int
     page_end: int

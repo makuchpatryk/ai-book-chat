@@ -5,20 +5,26 @@ Within a section, pages are flattened into one token stream with a
 token-index -> page map, which is what gives every chunk its page citation.
 """
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, NamedTuple
+from typing import NamedTuple, Protocol
 
 # A leftover shorter than this is merged into the previous chunk rather than
 # standing alone as a near-contextless fragment.
 MIN_TAIL_TOKENS = 150
 
 
-class SectionSpec(NamedTuple):
-    """Section specification."""
-    title: str
-    order_index: int
-    start_page: int
-    end_page: int
+class SectionBounds(Protocol):
+    """What chunking needs from a section: its order and page range."""
+
+    @property
+    def order_index(self) -> int: ...
+
+    @property
+    def start_page(self) -> int: ...
+
+    @property
+    def end_page(self) -> int: ...
 
 
 class PageText(NamedTuple):
@@ -39,7 +45,7 @@ class ChunkSpec:
 
 def chunk_document(
     pages: list[PageText],
-    sections: list[SectionSpec],
+    sections: Sequence[SectionBounds],
     encode: Callable[[str], list[int]],
     decode: Callable[[list[int]], str],
     size: int = 600,
@@ -72,7 +78,7 @@ def chunk_document(
 
 def _section_tokens(
     pages_by_number: dict[int, PageText],
-    section: SectionSpec,
+    section: SectionBounds,
     encode: Callable[[str], list[int]],
 ) -> tuple[list[int], list[int]]:
     """Tokenize section pages."""

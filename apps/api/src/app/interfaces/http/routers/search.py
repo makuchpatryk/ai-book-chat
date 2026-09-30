@@ -47,9 +47,11 @@ async def search(
     except Exception as e:
         from app.domain.errors import DocumentNotFound, DocumentNotReady
         if isinstance(e, DocumentNotFound):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="document not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="document not found"
+            ) from e
         if isinstance(e, DocumentNotReady):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="document not ready for search"
-            )
+            ) from e
         raise

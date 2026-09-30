@@ -4,8 +4,10 @@ import json
 import logging
 import re
 from collections.abc import AsyncIterator
+from typing import Any
 
 from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
 from app.domain.ports.llm import (
     AnswerGenerator,
@@ -17,6 +19,7 @@ from app.domain.ports.llm import (
 from app.domain.values.messages import Turn
 from app.domain.values.overview import DocumentOverview, OverviewSection
 from app.domain.values.quiz import QuizQuestion
+from app.domain.values.status import MessageRole
 from app.infrastructure.config.settings import Settings
 from app.infrastructure.llm.typesafe_reranker import TypeSafeReranker
 
@@ -40,7 +43,7 @@ using the passage's bracketed number as "index"."""
 _JSON_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 
-def _extract_json_object(text: str) -> dict:
+def _extract_json_object(text: str) -> dict[str, Any]:
     """Parse the JSON object in `text`, tolerating markdown fences and prose around it."""
     fence = _JSON_FENCE.search(text)
     if fence:
@@ -48,7 +51,8 @@ def _extract_json_object(text: str) -> dict:
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end <= start:
         raise ValueError(f"no JSON object in response: {text[:200]!r}")
-    return json.loads(text[start : end + 1])
+    parsed: dict[str, Any] = json.loads(text[start : end + 1])
+    return parsed
 
 
 class OpenAIGenerator(AnswerGenerator):
@@ -61,9 +65,12 @@ class OpenAIGenerator(AnswerGenerator):
 
     def stream(self, system: str, turns: list[Turn]) -> AsyncIterator[str]:
         """Stream completion tokens."""
-        messages = [{"role": "system", "content": system}]
+        messages: list[ChatCompletionMessageParam] = [{"role": "system", "content": system}]
         for turn in turns:
-            messages.append({"role": turn.role.value, "content": turn.content})
+            if turn.role is MessageRole.USER:
+                messages.append({"role": "user", "content": turn.content})
+            else:
+                messages.append({"role": "assistant", "content": turn.content})
 
         async def _stream() -> AsyncIterator[str]:
             stream = await self.client.chat.completions.create(
@@ -157,7 +164,9 @@ class OpenAIReranker(Reranker):
         payload = _extract_json_object(response.choices[0].message.content or "")
         by_index = {int(p["index"]): int(p["score"]) for p in payload["passages"]}
         if set(by_index) != set(range(len(passages))):
-            raise ValueError(f"rerank indices {sorted(by_index)} != expected 0..{len(passages) - 1}")
+            raise ValueError(
+                f"rerank indices {sorted(by_index)} != expected 0..{len(passages) - 1}"
+            )
         return [max(0, min(10, by_index[i])) for i in range(len(passages))]
 
 

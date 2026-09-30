@@ -30,6 +30,8 @@ from app.infrastructure.db.models import (
 from app.infrastructure.db.models import (
     Section as SectionORM,
 )
+from app.infrastructure.db.models.document import DocumentStatus as DocumentStatusORM
+from app.infrastructure.db.models.message import MessageRole as MessageRoleORM
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -69,7 +71,7 @@ def entity_document_to_orm(entity: Document, orm_row: DocumentORM | None = None)
     if orm_row:
         orm_row.filename = entity.filename
         orm_row.title = entity.title
-        orm_row.status = entity.status
+        orm_row.status = DocumentStatusORM(entity.status.value)
         orm_row.file_path = entity.file_path
         orm_row.content_hash = entity.content_hash
         orm_row.page_count = entity.page_count
@@ -176,7 +178,7 @@ def orm_message_to_entity(row: MessageORM, sources: list[Citation] | None = None
         role=MessageRole(row.role),
         content=row.content,
         order_index=row.order_index,
-        grounded=row.grounded,
+        grounded=bool(row.grounded),
         truncated=row.truncated,
         created_at=row.created_at,
         sources=sources or [],
@@ -199,7 +201,7 @@ def orm_source_to_citation(row: MessageSourceORM) -> Citation:
 def entity_message_to_orm(entity: Message, orm_row: MessageORM | None = None) -> MessageORM:
     """Map domain Message entity to ORM Message row."""
     if orm_row:
-        orm_row.role = entity.role
+        orm_row.role = MessageRoleORM(entity.role.value)
         orm_row.content = entity.content
         orm_row.grounded = entity.grounded
         orm_row.truncated = entity.truncated
@@ -252,7 +254,7 @@ def orm_quiz_to_entity(row: QuizORM) -> Quiz:
 
 def entity_quiz_to_orm(entity: Quiz, orm_row: QuizORM | None = None) -> QuizORM:
     """Map domain Quiz entity to ORM Quiz row."""
-    questions = [
+    questions: list[dict[str, object]] = [
         {
             "position": q.position,
             "question": q.question,

@@ -35,7 +35,7 @@ def guard_and_cut(
 
     if scored:
         # Filter by min_score threshold
-        filtered = [c for c in scored if c.score >= policy.min_score]
+        filtered = [c for c in scored if c.score is not None and c.score >= policy.min_score]
 
         if not filtered:
             return RetrievalOutcome(chunks=[], grounded=False, reason="no_relevant_chunks")

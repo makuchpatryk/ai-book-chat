@@ -56,7 +56,7 @@ class UploadDocument:
             )
         except ValueError as e:
             if "exceeds" in str(e):
-                raise FileTooLarge(self.max_upload_mb)
+                raise FileTooLarge(self.max_upload_mb) from e
             raise
 
         async with self.uow_factory() as uow:

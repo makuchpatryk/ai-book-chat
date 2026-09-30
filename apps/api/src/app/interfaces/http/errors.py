@@ -30,7 +30,9 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ConversationNotFound)
-    async def handle_conversation_not_found(request: Request, exc: ConversationNotFound) -> JSONResponse:
+    async def handle_conversation_not_found(
+        request: Request, exc: ConversationNotFound
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": "conversation not found"},
@@ -61,14 +63,18 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(DocumentAlreadyProcessed)
-    async def handle_document_already_processed(request: Request, exc: DocumentAlreadyProcessed) -> JSONResponse:
+    async def handle_document_already_processed(
+        request: Request, exc: DocumentAlreadyProcessed
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"detail": "document is already processed"},
         )
 
     @app.exception_handler(DocumentStillProcessing)
-    async def handle_document_still_processing(request: Request, exc: DocumentStillProcessing) -> JSONResponse:
+    async def handle_document_still_processing(
+        request: Request, exc: DocumentStillProcessing
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content={"detail": "document is still processing"},
@@ -89,7 +95,9 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(UnsupportedFileType)
-    async def handle_unsupported_file_type(request: Request, exc: UnsupportedFileType) -> JSONResponse:
+    async def handle_unsupported_file_type(
+        request: Request, exc: UnsupportedFileType
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             content={"detail": "only PDF files are supported"},
