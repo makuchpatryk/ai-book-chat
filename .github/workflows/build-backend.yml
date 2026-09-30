@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'apps/api/**'
-      - 'Dockerfile'
       - 'docker-compose.yml'
   workflow_dispatch:
 
@@ -48,7 +47,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: apps/api
           file: apps/api/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
