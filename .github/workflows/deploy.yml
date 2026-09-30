@@ -1,0 +1,107 @@
+name: deploy
+
+# Manual only, from a release tag: run this workflow from the Actions tab,
+# choose the tag as the ref and the target environment.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+# One deploy at a time across both environments.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check-ref:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require a tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" != "tag" ]; then
+            echo "::error::Deploy only runs from a tag; selected ref '$REF_NAME' is a $REF_TYPE. Use 'Use workflow from' -> Tags."
+            exit 1
+          fi
+
+  # Lint, test and build the tagged commit. Pushes the image as
+  # ghcr.io/<repo>/api:<tag> and uploads the frontend-build artifact.
+  ci:
+    needs: check-ref
+    uses: ./.github/workflows/ci.yml
+    # A called workflow can't exceed the caller's permissions.
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: read
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Required reviewers for production live in Settings -> Environments.
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-build
+          path: frontend-dist
+
+      - name: Deploy
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Deploying to $ENVIRONMENT..."
+          echo "Image: ghcr.io/$REPO/api:$TAG"
+          echo "Frontend artifacts: ./frontend-dist"
+          echo ""
+          echo "TODO: Add your deployment commands here"
+          echo "Examples:"
+          echo "  - SSH into the $ENVIRONMENT server"
+          echo "  - Pull Docker image: docker pull ghcr.io/$REPO/api:$TAG"
+          echo "  - Run: docker-compose up -d"
+          echo "  - Run database migrations if needed"
+          echo "  - Upload frontend artifacts to CDN"
+
+      - name: Health check
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "Verifying $ENVIRONMENT deployment..."
+          sleep 5
+          echo "TODO: Add health check endpoint"
+          echo "Example: curl -f https://$ENVIRONMENT.example.com/health || exit 1"
+
+      - name: Notify on success
+        if: success()
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "Deployment to $ENVIRONMENT successful"
+          echo "TODO: Add Slack/email notification"
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "Deployment to $ENVIRONMENT failed"
+          echo "TODO: Add Slack/email notification with rollback instructions"
