@@ -87,6 +87,15 @@ jobs:
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.changes.outputs.api == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
+      # Required by Settings (alembic env.py and pytest both load it); tests
+      # use fake adapters, so the model values are never called.
+      CHAT_MODEL: test-model
+      CHAT_REWRITE_MODEL: test-model
+      RERANK_MODEL: test-model
+      DESCRIBE_MODEL: test-model
+      QUIZ_MODEL: test-model
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -123,19 +132,9 @@ jobs:
 
       - name: Run migrations
         run: uv run alembic upgrade head
-        env:
-          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
 
       - name: Run pytest
         run: uv run pytest -v --tb=short
-        env:
-          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
-          # Required by Settings; tests use fake adapters, values are never called.
-          CHAT_MODEL: test-model
-          CHAT_REWRITE_MODEL: test-model
-          RERANK_MODEL: test-model
-          DESCRIBE_MODEL: test-model
-          QUIZ_MODEL: test-model
 
       # .coverage is a dotfile; pytest-cov is not a dev dependency yet, so
       # tolerate its absence.
